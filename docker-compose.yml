@@ -14,3 +14,22 @@ services:
       interval: 5s
       timeout: 5s
       retries: 20
+
+  backend:
+    build: .
+    container_name: hotel-manager-backend
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PORT: 8080
+      PGHOST: db
+      PGPORT: 5432
+      PGDATABASE: wab
+      PGUSER: wab
+      PGPASSWORD: wab
+    ports:
+      - "8080:8080"
+
+volumes:
+  pgdata:

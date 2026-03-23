@@ -188,3 +188,14 @@ INSERT INTO Reservierung_Aenderung (id, alter_wert, neuer_wert, feldname, erstel
 (4, 'Bestätigt', 'Storniert', 'status', NOW() - INTERVAL '39 days', 4),
 (5, 'Check-in erfolgt', 'Abgereist', 'status', NOW() - INTERVAL '55 days', 5)
 ON CONFLICT (id) DO NOTHING;
+
+-- Synchronize sequences with max ids to avoid unique constraint violations on auto-inserts
+SELECT setval(pg_get_serial_sequence('Kategorie', 'id'), COALESCE((SELECT MAX(id) FROM Kategorie), 1));
+SELECT setval(pg_get_serial_sequence('Zimmer', 'id'), COALESCE((SELECT MAX(id) FROM Zimmer), 1));
+SELECT setval(pg_get_serial_sequence('Status', 'id'), COALESCE((SELECT MAX(id) FROM Status), 1));
+SELECT setval(pg_get_serial_sequence('Mitarbeiter', 'id'), COALESCE((SELECT MAX(id) FROM Mitarbeiter), 1));
+SELECT setval(pg_get_serial_sequence('Gast', 'id'), COALESCE((SELECT MAX(id) FROM Gast), 1));
+SELECT setval(pg_get_serial_sequence('Wird_Betreut_Von', 'id'), COALESCE((SELECT MAX(id) FROM Wird_Betreut_Von), 1));
+SELECT setval(pg_get_serial_sequence('Gast_Aenderung', 'id'), COALESCE((SELECT MAX(id) FROM Gast_Aenderung), 1));
+SELECT setval(pg_get_serial_sequence('Reservierung', 'id'), COALESCE((SELECT MAX(id) FROM Reservierung), 1));
+SELECT setval(pg_get_serial_sequence('Reservierung_Aenderung', 'id'), COALESCE((SELECT MAX(id) FROM Reservierung_Aenderung), 1));
