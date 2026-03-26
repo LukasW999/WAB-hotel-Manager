@@ -259,7 +259,11 @@ export default function ReservationsPage() {
                                             onValueChange={val => setTempStatusId(val ?? "")}
                                           >
                                             <SelectTrigger className="flex-1">
-                                              <SelectValue placeholder="Status wählen..." />
+                                              <span data-slot="select-value">
+                                                {tempStatusId 
+                                                  ? statusOptionen.find(opt => opt.id.toString() === tempStatusId)?.name || tempStatusId 
+                                                  : "Status wählen..."}
+                                              </span>
                                             </SelectTrigger>
                                             <SelectContent>
                                               {statusOptionen.map(opt => (
@@ -425,7 +429,13 @@ function ReservationForm({ gäste, zimmer, onSave }: { gäste: Gast[], zimmer: Z
           <div className="space-y-2">
              <Label>Bestandskunden suchen</Label>
              <Select value={selectedGuestId} onValueChange={(val) => setSelectedGuestId(val ?? "")}>
-               <SelectTrigger><SelectValue placeholder="Wähle einen Gast..." /></SelectTrigger>
+               <SelectTrigger>
+                 <span data-slot="select-value">
+                   {selectedGuestId
+                     ? (() => { const g = gäste.find(g => g.id.toString() === selectedGuestId); return g ? `${g.nachname}, ${g.vorname} (${g.email})` : selectedGuestId; })()
+                     : "Wähle einen Gast..."}
+                 </span>
+               </SelectTrigger>
                <SelectContent>
                  {gäste.map(g => (
                    <SelectItem key={g.id} value={g.id.toString()}>{g.nachname}, {g.vorname} ({g.email})</SelectItem>
@@ -451,7 +461,13 @@ function ReservationForm({ gäste, zimmer, onSave }: { gäste: Gast[], zimmer: Z
            <div className="col-span-2 space-y-2">
              <Label>Verfügbares Zimmer</Label>
              <Select value={resData.zimmer_id} onValueChange={val => setResData({...resData, zimmer_id: val ?? ""})}>
-                <SelectTrigger><SelectValue placeholder="Zimmer wählen..." /></SelectTrigger>
+                <SelectTrigger>
+                  <span data-slot="select-value">
+                    {resData.zimmer_id
+                      ? (() => { const z = zimmer.find(z => z.id.toString() === resData.zimmer_id); return z ? `Zimmer ${z.nummer}` : resData.zimmer_id; })()
+                      : "Zimmer wählen..."}
+                  </span>
+                </SelectTrigger>
                 <SelectContent>
                   {zimmer.map(z => <SelectItem key={z.id} value={z.id.toString()}>Zimmer {z.nummer}</SelectItem>)}
                 </SelectContent>

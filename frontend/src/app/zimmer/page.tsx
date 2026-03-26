@@ -263,7 +263,11 @@ function ZimmerForm({
             onValueChange={(val) => setFormData({ ...formData, kategorie_id: val ?? "" })}
           >
             <SelectTrigger className="w-full">
-              <SelectValue placeholder="Kategorie wählen" />
+              <span data-slot="select-value" className="truncate">
+                {formData.kategorie_id
+                  ? (() => { const k = kategorien.find(k => k.id.toString() === formData.kategorie_id); return k ? `${k.name} (${k.preis}€, ${k.betten_anzahl} Betten)` : formData.kategorie_id; })()
+                  : "Kategorie wählen"}
+              </span>
             </SelectTrigger>
             <SelectContent>
               {kategorien.map((kat) => (
