@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search, Plus, Trash2, Calendar, User, Bed, Phone, Mail, CheckCircle, Info, UserPlus, Pencil } from "lucide-react";
+import { Search, Plus, Trash2, Calendar, User, Bed, Phone, Mail, CheckCircle, Info, UserPlus, Pencil, ChevronLeft, ChevronRight } from "lucide-react";
 
 type Gast = {
   id: number;
@@ -57,6 +57,43 @@ export default function ReservationsPage() {
   const [selectedRes, setSelectedRes] = useState<Reservierung | null>(null);
   const [tempStatusId, setTempStatusId] = useState<string>("");
   const [editingGuest, setEditingGuest] = useState<Gast | null>(null);
+
+  const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [currentWeekStart, setCurrentWeekStart] = useState(() => {
+    const now = new Date();
+    const day = now.getDay() || 7; // Convert Sunday (0) to 7
+    const start = new Date(now);
+    start.setDate(now.getDate() - day + 1);
+    start.setHours(0, 0, 0, 0);
+    return start;
+  });
+
+  const weekEnd = new Date(currentWeekStart);
+  weekEnd.setDate(currentWeekStart.getDate() + 6);
+  weekEnd.setHours(23, 59, 59, 999);
+
+  const prevWeek = () => setCurrentWeekStart(prev => {
+    const d = new Date(prev);
+    d.setDate(d.getDate() - 7);
+    return d;
+  });
+
+  const nextWeek = () => setCurrentWeekStart(prev => {
+    const d = new Date(prev);
+    d.setDate(d.getDate() + 7);
+    return d;
+  });
+
+  const resetToCurrentWeek = () => {
+    const now = new Date();
+    const day = now.getDay() || 7;
+    const start = new Date(now);
+    start.setDate(now.getDate() - day + 1);
+    start.setHours(0, 0, 0, 0);
+    setCurrentWeekStart(start);
+  };
+
+  const weekDisplay = `${currentWeekStart.toLocaleDateString("de-DE", { day: '2-digit', month: '2-digit' })} – ${weekEnd.toLocaleDateString("de-DE", { day: '2-digit', month: '2-digit', year: 'numeric' })}`;
 
   // Queries
   const { data: gäste = [] } = useQuery({
@@ -125,6 +162,16 @@ export default function ReservationsPage() {
     onError: (err: any) => alert(err.message),
   });
 
+  const filteredReservierungen = reservierungen.filter(res => {
+    const checkIn = new Date(res.check_in_datum);
+    checkIn.setHours(0, 0, 0, 0);
+    const checkOut = new Date(res.check_out_datum);
+    checkOut.setHours(23, 59, 59, 999);
+    const matchesWeek = checkIn <= weekEnd && checkOut >= currentWeekStart;
+    const matchesStatus = filterStatus === "all" || res.status_id?.toString() === filterStatus;
+    return matchesWeek && matchesStatus;
+  });
+
   return (
     <>
       <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
@@ -183,6 +230,46 @@ export default function ReservationsPage() {
             </div>
 
             <TabsContent value="reservations" className="m-0 focus-visible:outline-none">
+              <div className="flex items-center justify-between mb-4 bg-white dark:bg-slate-900/50 p-2 rounded-lg border border-slate-200/60 dark:border-slate-800 shadow-sm">
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-1">
+                    <Button variant="outline" size="sm" onClick={prevWeek} className="h-8 w-8 p-0">
+                      <ChevronLeft className="w-4 h-4" />
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={nextWeek} className="h-8 w-8 p-0">
+                      <ChevronRight className="w-4 h-4" />
+                    </Button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-slate-500" />
+                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300 w-44 text-center">
+                      {weekDisplay}
+                    </span>
+                  </div>
+                  <Button variant="ghost" size="sm" className="h-8 text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200" onClick={resetToCurrentWeek}>
+                    Aktuelle Woche
+                  </Button>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-slate-500">Status:</span>
+                  <Select value={filterStatus} onValueChange={(val) => setFilterStatus(val ?? "all")}>
+                    <SelectTrigger className="h-8 w-[160px] text-xs">
+                      <SelectValue className="hidden" />
+                      <span className="flex flex-1 text-left items-center truncate">
+                        {filterStatus === "all" ? "Alle Status" : statusOptionen.find(opt => opt.id.toString() === filterStatus)?.name}
+                      </span>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all" label="Alle Status">Alle Status</SelectItem>
+                      {statusOptionen.map(opt => (
+                        <SelectItem key={opt.id} value={opt.id.toString()} label={opt.name}>{opt.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
               <Card className="border-slate-200/60 dark:border-slate-800">
                 <CardContent className="p-0">
                   <Table>
@@ -196,10 +283,10 @@ export default function ReservationsPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {reservierungen.length === 0 ? (
-                        <TableRow><TableCell colSpan={5} className="h-32 text-center text-slate-500 italic">Keine Reservierungen vorhanden.</TableCell></TableRow>
+                      {filteredReservierungen.length === 0 ? (
+                        <TableRow><TableCell colSpan={5} className="h-32 text-center text-slate-500 italic">In dieser Woche gibt es keine Reservierungen.</TableCell></TableRow>
                       ) : (
-                        reservierungen.map((res) => (
+                        filteredReservierungen.map((res) => (
                           <TableRow key={res.id} className="group hover:bg-slate-50/50 dark:hover:bg-slate-800/20">
                             <TableCell className="pl-6 py-4">
                               <div className="flex items-center gap-3">
@@ -427,7 +514,7 @@ function ReservationForm({ gäste, zimmer, onSave }: { gäste: Gast[], zimmer: Z
   const [useExistingGuest, setUseExistingGuest] = useState(true);
   const [selectedGuestId, setSelectedGuestId] = useState<string>("");
   const [guestFormData, setGuestFormData] = useState({ vorname: "", nachname: "", email: "", telefonnummer: "", adresse: "" });
-  const [resData, setResData] = useState({ zimmer_id: "", check_in: "", check_out: "", status: "BESTAETIGT" });
+  const [resData, setResData] = useState({ zimmer_id: "", check_in: "", check_out: "", status: "ANFRAGE" });
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -442,7 +529,7 @@ function ReservationForm({ gäste, zimmer, onSave }: { gäste: Gast[], zimmer: Z
 
       await executeQuery(
         `INSERT INTO Reservierung (gast_id, zimmer_id, start, ende, status_id) 
-         VALUES (${gastId}, ${resData.zimmer_id}, '${resData.check_in}', '${resData.check_out}', 2)`
+         VALUES (${gastId}, ${resData.zimmer_id}, '${resData.check_in}', '${resData.check_out}', 1)`
       );
     },
     onSuccess: onSave
