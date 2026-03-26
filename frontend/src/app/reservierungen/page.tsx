@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search, Plus, Trash2, Calendar, User, Bed, Phone, Mail, CheckCircle, Info, UserPlus } from "lucide-react";
+import { Search, Plus, Trash2, Calendar, User, Bed, Phone, Mail, CheckCircle, Info, UserPlus, Pencil } from "lucide-react";
 
 type Gast = {
   id: number;
@@ -56,6 +56,7 @@ export default function ReservationsPage() {
   const [isGuestOpen, setIsGuestOpen] = useState(false);
   const [selectedRes, setSelectedRes] = useState<Reservierung | null>(null);
   const [tempStatusId, setTempStatusId] = useState<string>("");
+  const [editingGuest, setEditingGuest] = useState<Gast | null>(null);
 
   // Queries
   const { data: gäste = [] } = useQuery({
@@ -259,7 +260,8 @@ export default function ReservationsPage() {
                                             onValueChange={val => setTempStatusId(val ?? "")}
                                           >
                                             <SelectTrigger className="flex-1">
-                                              <span data-slot="select-value">
+                                              <SelectValue className="hidden" />
+                                              <span className="flex flex-1 text-left items-center gap-1.5 line-clamp-1">
                                                 {tempStatusId 
                                                   ? statusOptionen.find(opt => opt.id.toString() === tempStatusId)?.name || tempStatusId 
                                                   : "Status wählen..."}
@@ -267,7 +269,7 @@ export default function ReservationsPage() {
                                             </SelectTrigger>
                                             <SelectContent>
                                               {statusOptionen.map(opt => (
-                                                <SelectItem key={opt.id} value={opt.id.toString()}>{opt.name}</SelectItem>
+                                                <SelectItem key={opt.id} value={opt.id.toString()} label={opt.name}>{opt.name}</SelectItem>
                                               ))}
                                             </SelectContent>
                                           </Select>
@@ -333,9 +335,31 @@ export default function ReservationsPage() {
                              </TableCell>
                              <TableCell className="py-4 text-sm text-slate-500 w-1/4">{g.adresse}</TableCell>
                              <TableCell className="text-right pr-6 py-4">
-                               <Button variant="ghost" size="sm" className="text-red-500 opacity-0 group-hover:opacity-100" onClick={() => deleteGuest.mutate(g.id)}>
-                                 <Trash2 className="w-4 h-4" />
-                               </Button>
+                               <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                 <Dialog open={editingGuest?.id === g.id} onOpenChange={(open) => !open && setEditingGuest(null)}>
+                                   <DialogTrigger render={<Button variant="ghost" size="sm" onClick={() => setEditingGuest(g)} />}>
+                                     <Pencil className="w-4 h-4" />
+                                   </DialogTrigger>
+                                   <DialogContent className="sm:max-w-[500px]">
+                                     <DialogHeader>
+                                       <DialogTitle>Gast bearbeiten</DialogTitle>
+                                     </DialogHeader>
+                                     {editingGuest?.id === g.id && (
+                                       <GuestForm 
+                                         initialData={g}
+                                         onSave={() => {
+                                           setEditingGuest(null);
+                                           queryClient.invalidateQueries({ queryKey: ["gäste"] });
+                                           queryClient.invalidateQueries({ queryKey: ["reservierungen"] });
+                                         }}
+                                       />
+                                     )}
+                                   </DialogContent>
+                                 </Dialog>
+                                 <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => { if(confirm("Gast wirklich löschen?")) deleteGuest.mutate(g.id); }}>
+                                   <Trash2 className="w-4 h-4" />
+                                 </Button>
+                               </div>
                              </TableCell>
                            </TableRow>
                         ))
@@ -357,15 +381,26 @@ export default function ReservationsPage() {
 // ----------------------
 
 function GuestForm({ onSave, initialData }: { onSave: (id?: number) => void, initialData?: any }) {
-  const [formData, setFormData] = useState(initialData || {
-    vorname: "", nachname: "", email: "", telefonnummer: "", adresse: ""
+  const [formData, setFormData] = useState({
+    vorname: initialData?.vorname || "",
+    nachname: initialData?.nachname || "",
+    email: initialData?.email || "",
+    telefonnummer: initialData?.telefonnummer || "",
+    adresse: initialData?.strasse || initialData?.adresse || ""
   });
+
+  const isEditing = !!initialData?.id;
 
   const mutation = useMutation({
     mutationFn: async () => {
-       await executeQuery(`INSERT INTO Gast (vorname, nachname, email, telefonnummer, strasse) VALUES ('${formData.vorname}', '${formData.nachname}', '${formData.email}', '${formData.telefonnummer}', '${formData.adresse}')`);
-       const res = await executeQuery<{ id: number }[]>("SELECT MAX(id) as id FROM Gast");
-       return res[0].id;
+       if (isEditing) {
+         await executeQuery(`UPDATE Gast SET vorname = '${formData.vorname}', nachname = '${formData.nachname}', email = '${formData.email}', telefonnummer = '${formData.telefonnummer}', strasse = '${formData.adresse}' WHERE id = ${initialData.id}`);
+         return initialData.id;
+       } else {
+         await executeQuery(`INSERT INTO Gast (vorname, nachname, email, telefonnummer, strasse) VALUES ('${formData.vorname}', '${formData.nachname}', '${formData.email}', '${formData.telefonnummer}', '${formData.adresse}')`);
+         const res = await executeQuery<{ id: number }[]>("SELECT MAX(id) as id FROM Gast");
+         return res[0].id;
+       }
     },
     onSuccess: (id) => onSave(id),
   });
@@ -430,7 +465,8 @@ function ReservationForm({ gäste, zimmer, onSave }: { gäste: Gast[], zimmer: Z
              <Label>Bestandskunden suchen</Label>
              <Select value={selectedGuestId} onValueChange={(val) => setSelectedGuestId(val ?? "")}>
                <SelectTrigger>
-                 <span data-slot="select-value">
+                 <SelectValue className="hidden" />
+                 <span className="flex flex-1 text-left items-center gap-1.5 line-clamp-1">
                    {selectedGuestId
                      ? (() => { const g = gäste.find(g => g.id.toString() === selectedGuestId); return g ? `${g.nachname}, ${g.vorname} (${g.email})` : selectedGuestId; })()
                      : "Wähle einen Gast..."}
@@ -438,7 +474,9 @@ function ReservationForm({ gäste, zimmer, onSave }: { gäste: Gast[], zimmer: Z
                </SelectTrigger>
                <SelectContent>
                  {gäste.map(g => (
-                   <SelectItem key={g.id} value={g.id.toString()}>{g.nachname}, {g.vorname} ({g.email})</SelectItem>
+                   <SelectItem key={g.id} value={g.id.toString()} label={`${g.nachname}, ${g.vorname}`}>
+                     {g.nachname}, {g.vorname} ({g.email})
+                   </SelectItem>
                  ))}
                </SelectContent>
              </Select>
@@ -462,14 +500,19 @@ function ReservationForm({ gäste, zimmer, onSave }: { gäste: Gast[], zimmer: Z
              <Label>Verfügbares Zimmer</Label>
              <Select value={resData.zimmer_id} onValueChange={val => setResData({...resData, zimmer_id: val ?? ""})}>
                 <SelectTrigger>
-                  <span data-slot="select-value">
+                  <SelectValue className="hidden" />
+                  <span className="flex flex-1 text-left items-center gap-1.5 line-clamp-1">
                     {resData.zimmer_id
                       ? (() => { const z = zimmer.find(z => z.id.toString() === resData.zimmer_id); return z ? `Zimmer ${z.nummer}` : resData.zimmer_id; })()
                       : "Zimmer wählen..."}
                   </span>
                 </SelectTrigger>
                 <SelectContent>
-                  {zimmer.map(z => <SelectItem key={z.id} value={z.id.toString()}>Zimmer {z.nummer}</SelectItem>)}
+                  {zimmer.map(z => (
+                    <SelectItem key={z.id} value={z.id.toString()} label={`Zimmer ${z.nummer}`}>
+                      Zimmer {z.nummer}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
              </Select>
            </div>

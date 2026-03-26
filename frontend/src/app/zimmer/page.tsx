@@ -263,7 +263,8 @@ function ZimmerForm({
             onValueChange={(val) => setFormData({ ...formData, kategorie_id: val ?? "" })}
           >
             <SelectTrigger className="w-full">
-              <span data-slot="select-value" className="truncate">
+              <SelectValue className="hidden" />
+              <span className="flex flex-1 text-left items-center gap-1.5 truncate">
                 {formData.kategorie_id
                   ? (() => { const k = kategorien.find(k => k.id.toString() === formData.kategorie_id); return k ? `${k.name} (${k.preis}€, ${k.betten_anzahl} Betten)` : formData.kategorie_id; })()
                   : "Kategorie wählen"}
@@ -271,7 +272,7 @@ function ZimmerForm({
             </SelectTrigger>
             <SelectContent>
               {kategorien.map((kat) => (
-                <SelectItem key={kat.id} value={kat.id.toString()}>
+                <SelectItem key={kat.id} value={kat.id.toString()} label={kat.name}>
                   {kat.name} ({kat.preis}€, {kat.betten_anzahl} Betten)
                 </SelectItem>
               ))}
