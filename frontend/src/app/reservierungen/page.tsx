@@ -48,6 +48,8 @@ type Zimmer = {
   id: number;
   nummer: number;
 };
+// in dem gäste stamm wird irgendwie nicht richtig die adresse angezeigt
+//Mach das bitte auch direkt so das man die Adresse so in getrennten feldern angeben muss, ein felld für Straße eins für plz etc
 
 export default function ReservationsPage() {
   const queryClient = useQueryClient();
@@ -128,7 +130,7 @@ export default function ReservationsPage() {
 
   // Mutations
   const updateStatus = useMutation({
-    mutationFn: ({ id, statusId }: { id: number, statusId: number }) => 
+    mutationFn: ({ id, statusId }: { id: number, statusId: number }) =>
       executeQuery(`UPDATE Reservierung SET status_id = ${statusId} WHERE id = ${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["reservierungen"] });
@@ -197,14 +199,14 @@ export default function ReservationsPage() {
                       <DialogHeader>
                         <DialogTitle>Neue Reservierung anlegen</DialogTitle>
                       </DialogHeader>
-                      <ReservationForm 
-                        gäste={gäste} 
-                        zimmer={zimmer} 
+                      <ReservationForm
+                        gäste={gäste}
+                        zimmer={zimmer}
                         onSave={() => {
                           setIsResOpen(false);
                           queryClient.invalidateQueries({ queryKey: ["reservierungen"] });
                           queryClient.invalidateQueries({ queryKey: ["gäste"] });
-                        }} 
+                        }}
                       />
                     </DialogContent>
                   </Dialog>
@@ -217,11 +219,11 @@ export default function ReservationsPage() {
                       <DialogHeader>
                         <DialogTitle>Neuen Gast anlegen</DialogTitle>
                       </DialogHeader>
-                      <GuestForm 
+                      <GuestForm
                         onSave={() => {
                           setIsGuestOpen(false);
                           queryClient.invalidateQueries({ queryKey: ["gäste"] });
-                        }} 
+                        }}
                       />
                     </DialogContent>
                   </Dialog>
@@ -312,8 +314,8 @@ export default function ReservationsPage() {
                             </TableCell>
                             <TableCell className="text-left py-4">
                               <div className="flex justify-start gap-1">
-                                <Dialog 
-                                  open={selectedRes?.id === res.id} 
+                                <Dialog
+                                  open={selectedRes?.id === res.id}
                                   onOpenChange={(open) => {
                                     if (!open) setSelectedRes(null);
                                     else {
@@ -342,15 +344,15 @@ export default function ReservationsPage() {
                                       <div className="space-y-3 pt-4 border-t">
                                         <Label>Status aktualisieren</Label>
                                         <div className="flex gap-2">
-                                          <Select 
-                                            value={tempStatusId} 
+                                          <Select
+                                            value={tempStatusId}
                                             onValueChange={val => setTempStatusId(val ?? "")}
                                           >
                                             <SelectTrigger className="flex-1">
                                               <SelectValue className="hidden" />
                                               <span className="flex flex-1 text-left items-center gap-1.5 line-clamp-1">
-                                                {tempStatusId 
-                                                  ? statusOptionen.find(opt => opt.id.toString() === tempStatusId)?.name || tempStatusId 
+                                                {tempStatusId
+                                                  ? statusOptionen.find(opt => opt.id.toString() === tempStatusId)?.name || tempStatusId
                                                   : "Status wählen..."}
                                               </span>
                                             </SelectTrigger>
@@ -360,8 +362,8 @@ export default function ReservationsPage() {
                                               ))}
                                             </SelectContent>
                                           </Select>
-                                          <Button 
-                                            size="sm" 
+                                          <Button
+                                            size="sm"
                                             className="bg-indigo-600 hover:bg-indigo-700 text-white"
                                             onClick={() => tempStatusId && updateStatus.mutate({ id: res.id, statusId: parseInt(tempStatusId) })}
                                             disabled={updateStatus.isPending || tempStatusId === res.status_id?.toString() || !tempStatusId}
@@ -372,9 +374,9 @@ export default function ReservationsPage() {
                                       </div>
                                     </div>
                                     <DialogFooter className="sm:justify-between border-t pt-4">
-                                      <Button 
-                                        variant="ghost" 
-                                        size="sm" 
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
                                         className="text-red-500 hover:text-red-600 hover:bg-red-50 px-0"
                                         onClick={() => confirm("Reservierung wirklich löschen?") && deleteRes.mutate(res.id)}
                                       >
@@ -401,10 +403,10 @@ export default function ReservationsPage() {
                   <Table>
                     <TableHeader className="bg-slate-50/50 dark:bg-slate-900/50">
                       <TableRow className="border-b-slate-100 dark:border-slate-800">
-                         <TableHead className="pl-6 font-medium">Name</TableHead>
-                         <TableHead className="font-medium">Kontakt</TableHead>
-                         <TableHead className="font-medium">Adresse</TableHead>
-                         <TableHead className="text-right pr-6 font-medium">Aktionen</TableHead>
+                        <TableHead className="pl-6 font-medium">Name</TableHead>
+                        <TableHead className="font-medium">Kontakt</TableHead>
+                        <TableHead className="font-medium">Adresse</TableHead>
+                        <TableHead className="text-right pr-6 font-medium">Aktionen</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -412,43 +414,43 @@ export default function ReservationsPage() {
                         <TableRow><TableCell colSpan={4} className="h-32 text-center text-slate-500 italic">Noch keine Gäste im Stamm.</TableCell></TableRow>
                       ) : (
                         gäste.map((g) => (
-                           <TableRow key={g.id} className="group">
-                             <TableCell className="pl-6 py-4 font-medium">{g.vorname} {g.nachname}</TableCell>
-                             <TableCell className="py-4 text-sm text-slate-600">
-                               <div className="flex flex-col gap-0.5">
-                                 <div className="flex items-center gap-1.5"><Mail className="w-3 h-3" /> {g.email}</div>
-                                 <div className="flex items-center gap-1.5"><Phone className="w-3 h-3" /> {g.telefonnummer}</div>
-                               </div>
-                             </TableCell>
-                             <TableCell className="py-4 text-sm text-slate-500 w-1/4">{g.adresse}</TableCell>
-                             <TableCell className="text-right pr-6 py-4">
-                               <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                 <Dialog open={editingGuest?.id === g.id} onOpenChange={(open) => !open && setEditingGuest(null)}>
-                                   <DialogTrigger render={<Button variant="ghost" size="sm" onClick={() => setEditingGuest(g)} />}>
-                                     <Pencil className="w-4 h-4" />
-                                   </DialogTrigger>
-                                   <DialogContent className="sm:max-w-[500px]">
-                                     <DialogHeader>
-                                       <DialogTitle>Gast bearbeiten</DialogTitle>
-                                     </DialogHeader>
-                                     {editingGuest?.id === g.id && (
-                                       <GuestForm 
-                                         initialData={g}
-                                         onSave={() => {
-                                           setEditingGuest(null);
-                                           queryClient.invalidateQueries({ queryKey: ["gäste"] });
-                                           queryClient.invalidateQueries({ queryKey: ["reservierungen"] });
-                                         }}
-                                       />
-                                     )}
-                                   </DialogContent>
-                                 </Dialog>
-                                 <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => { if(confirm("Gast wirklich löschen?")) deleteGuest.mutate(g.id); }}>
-                                   <Trash2 className="w-4 h-4" />
-                                 </Button>
-                               </div>
-                             </TableCell>
-                           </TableRow>
+                          <TableRow key={g.id} className="group">
+                            <TableCell className="pl-6 py-4 font-medium">{g.vorname} {g.nachname}</TableCell>
+                            <TableCell className="py-4 text-sm text-slate-600">
+                              <div className="flex flex-col gap-0.5">
+                                <div className="flex items-center gap-1.5"><Mail className="w-3 h-3" /> {g.email}</div>
+                                <div className="flex items-center gap-1.5"><Phone className="w-3 h-3" /> {g.telefonnummer}</div>
+                              </div>
+                            </TableCell>
+                            <TableCell className="py-4 text-sm text-slate-500 w-1/4">{g.adresse}</TableCell>
+                            <TableCell className="text-right pr-6 py-4">
+                              <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Dialog open={editingGuest?.id === g.id} onOpenChange={(open) => !open && setEditingGuest(null)}>
+                                  <DialogTrigger render={<Button variant="ghost" size="sm" onClick={() => setEditingGuest(g)} />}>
+                                    <Pencil className="w-4 h-4" />
+                                  </DialogTrigger>
+                                  <DialogContent className="sm:max-w-[500px]">
+                                    <DialogHeader>
+                                      <DialogTitle>Gast bearbeiten</DialogTitle>
+                                    </DialogHeader>
+                                    {editingGuest?.id === g.id && (
+                                      <GuestForm
+                                        initialData={g}
+                                        onSave={() => {
+                                          setEditingGuest(null);
+                                          queryClient.invalidateQueries({ queryKey: ["gäste"] });
+                                          queryClient.invalidateQueries({ queryKey: ["reservierungen"] });
+                                        }}
+                                      />
+                                    )}
+                                  </DialogContent>
+                                </Dialog>
+                                <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => { if (confirm("Gast wirklich löschen?")) deleteGuest.mutate(g.id); }}>
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
                         ))
                       )}
                     </TableBody>
@@ -480,14 +482,14 @@ function GuestForm({ onSave, initialData }: { onSave: (id?: number) => void, ini
 
   const mutation = useMutation({
     mutationFn: async () => {
-       if (isEditing) {
-         await executeQuery(`UPDATE Gast SET vorname = '${formData.vorname}', nachname = '${formData.nachname}', email = '${formData.email}', telefonnummer = '${formData.telefonnummer}', strasse = '${formData.adresse}' WHERE id = ${initialData.id}`);
-         return initialData.id;
-       } else {
-         await executeQuery(`INSERT INTO Gast (vorname, nachname, email, telefonnummer, strasse) VALUES ('${formData.vorname}', '${formData.nachname}', '${formData.email}', '${formData.telefonnummer}', '${formData.adresse}')`);
-         const res = await executeQuery<{ id: number }[]>("SELECT MAX(id) as id FROM Gast");
-         return res[0].id;
-       }
+      if (isEditing) {
+        await executeQuery(`UPDATE Gast SET vorname = '${formData.vorname}', nachname = '${formData.nachname}', email = '${formData.email}', telefonnummer = '${formData.telefonnummer}', strasse = '${formData.adresse}' WHERE id = ${initialData.id}`);
+        return initialData.id;
+      } else {
+        await executeQuery(`INSERT INTO Gast (vorname, nachname, email, telefonnummer, strasse) VALUES ('${formData.vorname}', '${formData.nachname}', '${formData.email}', '${formData.telefonnummer}', '${formData.adresse}')`);
+        const res = await executeQuery<{ id: number }[]>("SELECT MAX(id) as id FROM Gast");
+        return res[0].id;
+      }
     },
     onSuccess: (id) => onSave(id),
   });
@@ -495,12 +497,12 @@ function GuestForm({ onSave, initialData }: { onSave: (id?: number) => void, ini
   return (
     <div className="space-y-4 pt-4">
       <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2"><Label>Vorname</Label><Input value={formData.vorname} onChange={e => setFormData({...formData, vorname: e.target.value})} /></div>
-        <div className="space-y-2"><Label>Nachname</Label><Input value={formData.nachname} onChange={e => setFormData({...formData, nachname: e.target.value})} /></div>
+        <div className="space-y-2"><Label>Vorname</Label><Input value={formData.vorname} onChange={e => setFormData({ ...formData, vorname: e.target.value })} /></div>
+        <div className="space-y-2"><Label>Nachname</Label><Input value={formData.nachname} onChange={e => setFormData({ ...formData, nachname: e.target.value })} /></div>
       </div>
-      <div className="space-y-2"><Label>Email</Label><Input type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} /></div>
-      <div className="space-y-2"><Label>Telefon</Label><Input value={formData.telefonnummer} onChange={e => setFormData({...formData, telefonnummer: e.target.value})} /></div>
-      <div className="space-y-2"><Label>Adresse</Label><Input value={formData.adresse} onChange={e => setFormData({...formData, adresse: e.target.value})} /></div>
+      <div className="space-y-2"><Label>Email</Label><Input type="email" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} /></div>
+      <div className="space-y-2"><Label>Telefon</Label><Input value={formData.telefonnummer} onChange={e => setFormData({ ...formData, telefonnummer: e.target.value })} /></div>
+      <div className="space-y-2"><Label>Adresse</Label><Input value={formData.adresse} onChange={e => setFormData({ ...formData, adresse: e.target.value })} /></div>
       <Button onClick={() => mutation.mutate()} className="w-full bg-slate-900" disabled={mutation.isPending}>Gast speichern</Button>
     </div>
   );
@@ -519,11 +521,11 @@ function ReservationForm({ gäste, zimmer, onSave }: { gäste: Gast[], zimmer: Z
   const mutation = useMutation({
     mutationFn: async () => {
       let gastId = selectedGuestId;
-      
+
       if (!useExistingGuest) {
         // Create Guest First - Simplified address mapping
         await executeQuery(`INSERT INTO Gast (vorname, nachname, email, telefonnummer, strasse) VALUES ('${guestFormData.vorname}', '${guestFormData.nachname}', '${guestFormData.email}', '${guestFormData.telefonnummer}', '${guestFormData.adresse}')`);
-        const res = await executeQuery<{id: number}[]>("SELECT MAX(id) as id FROM Gast");
+        const res = await executeQuery<{ id: number }[]>("SELECT MAX(id) as id FROM Gast");
         gastId = res[0].id.toString();
       }
 
@@ -549,32 +551,32 @@ function ReservationForm({ gäste, zimmer, onSave }: { gäste: Gast[], zimmer: Z
 
         {useExistingGuest ? (
           <div className="space-y-2">
-             <Label>Bestandskunden suchen</Label>
-             <Select value={selectedGuestId} onValueChange={(val) => setSelectedGuestId(val ?? "")}>
-               <SelectTrigger>
-                 <SelectValue className="hidden" />
-                 <span className="flex flex-1 text-left items-center gap-1.5 line-clamp-1">
-                   {selectedGuestId
-                     ? (() => { const g = gäste.find(g => g.id.toString() === selectedGuestId); return g ? `${g.nachname}, ${g.vorname} (${g.email})` : selectedGuestId; })()
-                     : "Wähle einen Gast..."}
-                 </span>
-               </SelectTrigger>
-               <SelectContent>
-                 {gäste.map(g => (
-                   <SelectItem key={g.id} value={g.id.toString()} label={`${g.nachname}, ${g.vorname}`}>
-                     {g.nachname}, {g.vorname} ({g.email})
-                   </SelectItem>
-                 ))}
-               </SelectContent>
-             </Select>
+            <Label>Bestandskunden suchen</Label>
+            <Select value={selectedGuestId} onValueChange={(val) => setSelectedGuestId(val ?? "")}>
+              <SelectTrigger>
+                <SelectValue className="hidden" />
+                <span className="flex flex-1 text-left items-center gap-1.5 line-clamp-1">
+                  {selectedGuestId
+                    ? (() => { const g = gäste.find(g => g.id.toString() === selectedGuestId); return g ? `${g.nachname}, ${g.vorname} (${g.email})` : selectedGuestId; })()
+                    : "Wähle einen Gast..."}
+                </span>
+              </SelectTrigger>
+              <SelectContent>
+                {gäste.map(g => (
+                  <SelectItem key={g.id} value={g.id.toString()} label={`${g.nachname}, ${g.vorname}`}>
+                    {g.nachname}, {g.vorname} ({g.email})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3">
-             <Input placeholder="Vorname" onChange={e => setGuestFormData({...guestFormData, vorname: e.target.value})} />
-             <Input placeholder="Nachname" onChange={e => setGuestFormData({...guestFormData, nachname: e.target.value})} />
-             <Input placeholder="Email" className="col-span-2" onChange={e => setGuestFormData({...guestFormData, email: e.target.value})} />
-             <Input placeholder="Telefon" className="col-span-2" onChange={e => setGuestFormData({...guestFormData, telefonnummer: e.target.value})} />
-             <Input placeholder="Adresse" className="col-span-2" onChange={e => setGuestFormData({...guestFormData, adresse: e.target.value})} />
+            <Input placeholder="Vorname" onChange={e => setGuestFormData({ ...guestFormData, vorname: e.target.value })} />
+            <Input placeholder="Nachname" onChange={e => setGuestFormData({ ...guestFormData, nachname: e.target.value })} />
+            <Input placeholder="Email" className="col-span-2" onChange={e => setGuestFormData({ ...guestFormData, email: e.target.value })} />
+            <Input placeholder="Telefon" className="col-span-2" onChange={e => setGuestFormData({ ...guestFormData, telefonnummer: e.target.value })} />
+            <Input placeholder="Adresse" className="col-span-2" onChange={e => setGuestFormData({ ...guestFormData, adresse: e.target.value })} />
           </div>
         )}
       </div>
@@ -583,40 +585,40 @@ function ReservationForm({ gäste, zimmer, onSave }: { gäste: Gast[], zimmer: Z
       <div className="space-y-4 pt-4 border-t">
         <Label className="text-base font-semibold">2. Buchungs-Details</Label>
         <div className="grid grid-cols-2 gap-4">
-           <div className="col-span-2 space-y-2">
-             <Label>Verfügbares Zimmer</Label>
-             <Select value={resData.zimmer_id} onValueChange={val => setResData({...resData, zimmer_id: val ?? ""})}>
-                <SelectTrigger>
-                  <SelectValue className="hidden" />
-                  <span className="flex flex-1 text-left items-center gap-1.5 line-clamp-1">
-                    {resData.zimmer_id
-                      ? (() => { const z = zimmer.find(z => z.id.toString() === resData.zimmer_id); return z ? `Zimmer ${z.nummer}` : resData.zimmer_id; })()
-                      : "Zimmer wählen..."}
-                  </span>
-                </SelectTrigger>
-                <SelectContent>
-                  {zimmer.map(z => (
-                    <SelectItem key={z.id} value={z.id.toString()} label={`Zimmer ${z.nummer}`}>
-                      Zimmer {z.nummer}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-             </Select>
-           </div>
-           <div className="space-y-2">
-             <Label>Check-In</Label>
-             <Input type="date" onChange={e => setResData({...resData, check_in: e.target.value})} />
-           </div>
-           <div className="space-y-2">
-             <Label>Check-Out</Label>
-             <Input type="date" onChange={e => setResData({...resData, check_out: e.target.value})} />
-           </div>
+          <div className="col-span-2 space-y-2">
+            <Label>Verfügbares Zimmer</Label>
+            <Select value={resData.zimmer_id} onValueChange={val => setResData({ ...resData, zimmer_id: val ?? "" })}>
+              <SelectTrigger>
+                <SelectValue className="hidden" />
+                <span className="flex flex-1 text-left items-center gap-1.5 line-clamp-1">
+                  {resData.zimmer_id
+                    ? (() => { const z = zimmer.find(z => z.id.toString() === resData.zimmer_id); return z ? `Zimmer ${z.nummer}` : resData.zimmer_id; })()
+                    : "Zimmer wählen..."}
+                </span>
+              </SelectTrigger>
+              <SelectContent>
+                {zimmer.map(z => (
+                  <SelectItem key={z.id} value={z.id.toString()} label={`Zimmer ${z.nummer}`}>
+                    Zimmer {z.nummer}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Check-In</Label>
+            <Input type="date" onChange={e => setResData({ ...resData, check_in: e.target.value })} />
+          </div>
+          <div className="space-y-2">
+            <Label>Check-Out</Label>
+            <Input type="date" onChange={e => setResData({ ...resData, check_out: e.target.value })} />
+          </div>
         </div>
       </div>
 
       <DialogFooter className="pt-6 border-t">
-        <Button 
-          className="w-full bg-indigo-600 hover:bg-indigo-700 h-12 text-lg font-medium" 
+        <Button
+          className="w-full bg-indigo-600 hover:bg-indigo-700 h-12 text-lg font-medium"
           onClick={() => mutation.mutate()}
           disabled={mutation.isPending || (!selectedGuestId && useExistingGuest) || (!resData.zimmer_id)}
         >
