@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search, Plus, Trash2, Calendar, User, Bed, Phone, Mail, CheckCircle, Info, UserPlus, Pencil, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, Plus, Trash2, Calendar, User, Bed, Phone, Mail, CheckCircle, Info, UserPlus, Pencil, ChevronLeft, ChevronRight, FileText, Receipt } from "lucide-react";
 
 type Gast = {
   id: number;
@@ -41,6 +41,7 @@ type Reservierung = {
   land: string;
   zimmer_id: number;
   zimmer_nummer: number;
+  zimmer_preis: number;
   check_in_datum: string;
   check_out_datum: string;
   status_id: number;
@@ -78,6 +79,7 @@ export default function ReservationsPage() {
   const [isEditingRes, setIsEditingRes] = useState(false);
   const [tempStatusId, setTempStatusId] = useState<string>("");
   const [editingGuest, setEditingGuest] = useState<Gast | null>(null);
+  const [guestHistory, setGuestHistory] = useState<Gast | null>(null);
 
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [currentWeekStart, setCurrentWeekStart] = useState(() => {
@@ -133,10 +135,11 @@ export default function ReservationsPage() {
         `SELECT r.id, r.start as check_in_datum, r.ende as check_out_datum, r.status_id, r.gast_id, r.zimmer_id,
                 r.fruehstueck, r.parkplatz, r.bemerkung,
                 g.vorname, g.nachname, g.email, g.telefonnummer, g.strasse, g.hausnummer, g.postleitzahl, g.stadt, g.land,
-                z.nummer as zimmer_nummer, s.name as status
+                z.nummer as zimmer_nummer, k.preis as zimmer_preis, s.name as status
          FROM Reservierung r 
          JOIN Gast g ON r.gast_id = g.id 
          JOIN zimmer z ON r.zimmer_id = z.id 
+         JOIN Kategorie k ON z.kategorie_id = k.id
          LEFT JOIN Status s ON r.status_id = s.id
          ORDER BY r.start DESC`
       ),
@@ -436,6 +439,7 @@ export default function ReservationsPage() {
                                           <Button variant="ghost" size="sm" onClick={() => setIsEditingRes(true)}>
                                             <Pencil className="w-4 h-4 mr-1.5" /> Bearbeiten
                                           </Button>
+                                          <RechnungDialog reservierung={res} />
                                         </div>
                                         <Button variant="outline" onClick={() => setSelectedRes(null)}>Schließen</Button>
                                       </DialogFooter>
@@ -486,6 +490,9 @@ export default function ReservationsPage() {
                           </TableCell>
                           <TableCell className="text-right pr-6 py-4">
                             <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <Button variant="ghost" size="sm" onClick={() => setGuestHistory(g)} title="Historie & Rechnungen">
+                                <FileText className="w-4 h-4 text-indigo-500" />
+                              </Button>
                               <Dialog open={editingGuest?.id === g.id} onOpenChange={(open) => !open && setEditingGuest(null)}>
                                 <DialogTrigger render={<Button variant="ghost" size="sm" onClick={() => setEditingGuest(g)} />}>
                                   <Pencil className="w-4 h-4" />
@@ -521,6 +528,9 @@ export default function ReservationsPage() {
           </TabsContent>
         </Tabs>
       </div>
+      {guestHistory && (
+        <GuestHistoryViewer gast={guestHistory} onClose={() => setGuestHistory(null)} />
+      )}
     </main>
   );
 }
@@ -928,5 +938,186 @@ function MitreisendeList({ reservierungId }: { reservierungId: number }) {
         </div>
       ))}
     </div>
+  );
+}
+
+// ----------------------
+// HISTORIE UND RECHNUNG
+// ----------------------
+
+type Zusatzleistung = {
+  id: number;
+  reservierung_id: number;
+  name: string;
+  preis: number;
+  anzahl: number;
+};
+
+function GuestHistoryViewer({ gast, onClose }: { gast: Gast, onClose: () => void }) {
+  const { data: resList = [], isLoading } = useQuery({
+    queryKey: ["gast_hist", gast.id],
+    queryFn: () => executeQuery<Reservierung[]>(`
+        SELECT r.id, r.start as check_in_datum, r.ende as check_out_datum, r.status_id, r.gast_id, r.zimmer_id,
+                r.fruehstueck, r.parkplatz, r.bemerkung,
+                g.vorname, g.nachname, g.email, g.telefonnummer, g.strasse, g.hausnummer, g.postleitzahl, g.stadt, g.land,
+                z.nummer as zimmer_nummer, k.preis as zimmer_preis, s.name as status
+         FROM Reservierung r 
+         JOIN Gast g ON r.gast_id = g.id 
+         JOIN zimmer z ON r.zimmer_id = z.id 
+         JOIN Kategorie k ON z.kategorie_id = k.id
+         LEFT JOIN Status s ON r.status_id = s.id
+         WHERE r.gast_id = ${gast.id}
+         ORDER BY r.start DESC
+    `)
+  });
+
+  return (
+    <Dialog open={true} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Historie & Rechnungen: {gast.vorname} {gast.nachname}</DialogTitle>
+          <DialogDescription>Alle Aufenthalte dieses Gastes</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 pt-4">
+          {isLoading ? (
+            <p className="text-center text-slate-500 py-4">Lade Historie...</p>
+          ) : resList.length === 0 ? (
+            <p className="text-center text-slate-500 py-4">Bisher keine Buchungen für diesen Gast.</p>
+          ) : (
+            resList.map(res => (
+              <div key={res.id} className="border rounded-md p-4 flex justify-between items-center bg-slate-50/50">
+                <div>
+                  <p className="font-semibold text-slate-800">
+                    {new Date(res.check_in_datum).toLocaleDateString("de-DE")} - {new Date(res.check_out_datum).toLocaleDateString("de-DE")}
+                  </p>
+                  <p className="text-sm text-slate-500">Zimmer {res.zimmer_nummer} • Status: {res.status}</p>
+                </div>
+                <RechnungDialog reservierung={res} />
+              </div>
+            ))
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function RechnungDialog({ reservierung }: { reservierung: Reservierung }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const queryClient = useQueryClient();
+  
+  const dStart = new Date(reservierung.check_in_datum);
+  const dEnd = new Date(reservierung.check_out_datum);
+  dStart.setHours(0,0,0,0);
+  dEnd.setHours(0,0,0,0);
+  const diffTime = Math.abs(dEnd.getTime() - dStart.getTime());
+  const nights = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+  
+  const zimmerSum = (reservierung.zimmer_preis || 0) * nights;
+  const fruehstueckSum = reservierung.fruehstueck ? (15 * nights) : 0;
+  const parkSum = reservierung.parkplatz ? (10 * nights) : 0;
+
+  const { data: extList = [] } = useQuery({
+    queryKey: ["zusatzleistung", reservierung.id],
+    queryFn: () => executeQuery<Zusatzleistung[]>(`SELECT * FROM Zusatzleistung WHERE reservierung_id = ${reservierung.id}`),
+    enabled: isOpen
+  });
+
+  const extSum = extList.reduce((acc, curr) => acc + (curr.preis * curr.anzahl), 0);
+  const total = zimmerSum + fruehstueckSum + parkSum + extSum;
+
+  const [newName, setNewName] = useState("");
+  const [newPreis, setNewPreis] = useState("");
+  
+  const addLeistung = useMutation({
+    mutationFn: () => {
+      if (!newName || !newPreis) throw new Error("Name und Preis erforderlich");
+      const preisNum = parseFloat(newPreis.replace(',', '.'));
+      if (isNaN(preisNum)) throw new Error("Preis ungültig");
+      return executeQuery(`INSERT INTO Zusatzleistung (reservierung_id, name, preis) VALUES (${reservierung.id}, '${newName}', ${preisNum})`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["zusatzleistung", reservierung.id] });
+      setNewName("");
+      setNewPreis("");
+    },
+    onError: (err: any) => alert(err.message)
+  });
+
+  const deleteLeistung = useMutation({
+    mutationFn: (id: number) => executeQuery(`DELETE FROM Zusatzleistung WHERE id = ${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["zusatzleistung", reservierung.id] });
+    }
+  });
+
+  return (
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <DialogTrigger render={<Button variant="outline" size="sm" className="bg-white hover:bg-slate-50 border-indigo-200 text-indigo-700 gap-1.5 shadow-sm" />}>
+        <div className="flex items-center gap-1.5"><Receipt className="w-4 h-4"/> Rechnung zeigen</div>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[550px]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-indigo-700">
+            <Receipt className="w-5 h-5"/> Gastrechnung
+          </DialogTitle>
+          <DialogDescription>
+            Rechnung für Buchung #{reservierung.id} • {reservierung.vorname} {reservierung.nachname}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-6 pt-4">
+          <div className="bg-slate-50 border rounded-lg p-5">
+            <h3 className="text-sm font-semibold mb-3 border-b pb-2">Gebuchte Leistungen</h3>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between items-center">
+                <span>Zimmer #{reservierung.zimmer_nummer} ({nights} Nächte á {reservierung.zimmer_preis}€)</span>
+                <span className="font-medium text-slate-800">{zimmerSum.toFixed(2)} €</span>
+              </div>
+              {reservierung.fruehstueck && (
+                <div className="flex justify-between items-center text-orange-700/80">
+                  <span>Frühstückspauschale ({nights} Nächte á 15€)</span>
+                  <span className="font-medium">{fruehstueckSum.toFixed(2)} €</span>
+                </div>
+              )}
+              {reservierung.parkplatz && (
+                <div className="flex justify-between items-center text-blue-700/80">
+                  <span>Parkplatz ({nights} Nächte á 10€)</span>
+                  <span className="font-medium">{parkSum.toFixed(2)} €</span>
+                </div>
+              )}
+              {extList.map(ext => (
+                <div key={ext.id} className="flex justify-between items-center group">
+                  <div className="flex items-center gap-2">
+                    <span>{ext.name} (1x)</span>
+                    <button onClick={() => deleteLeistung.mutate(ext.id)} className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600"><Trash2 className="w-3 h-3"/></button>
+                  </div>
+                  <span className="font-medium">{(ext.preis * ext.anzahl).toFixed(2)} €</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex justify-between items-center mt-4 pt-3 border-t-2 border-slate-200 font-bold text-lg">
+              <span>Gesamtbetrag</span>
+              <span className="text-indigo-700">{total.toFixed(2)} €</span>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+             <Label className="text-xs font-semibold text-slate-500 uppercase">Zusatzleistung hinzufügen</Label>
+             <div className="flex gap-2">
+               <Input placeholder="Z.b. Minibar, Massage..." className="flex-1" value={newName} onChange={e => setNewName(e.target.value)} />
+               <Input placeholder="15.00" className="w-24 text-right" value={newPreis} onChange={e => setNewPreis(e.target.value)} />
+               <div className="flex items-center justify-center bg-slate-100 px-3 border border-l-0 -ml-2 rounded-r-md text-slate-500 font-medium">€</div>
+               <Button onClick={() => addLeistung.mutate()} disabled={addLeistung.isPending} className="bg-slate-800 text-white ml-2"><Plus className="w-4 h-4 mr-1"/> Hinzufügen</Button>
+             </div>
+          </div>
+        </div>
+
+        <DialogFooter className="border-t pt-4 sm:justify-end">
+            <Button variant="outline" onClick={() => setIsOpen(false)}>Schließen</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

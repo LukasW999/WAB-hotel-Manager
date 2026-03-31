@@ -9,9 +9,9 @@ export function Sidebar() {
 
   const links = [
     {
-      href: "/",
-      label: "Mitarbeiter",
-      icon: Briefcase,
+      href: "/reservierungen",
+      label: "Reservierungen",
+      icon: Calendar,
     },
     {
       href: "/zimmer",
@@ -19,14 +19,14 @@ export function Sidebar() {
       icon: Bed,
     },
     {
-      href: "/reservierungen",
-      label: "Reservierungen",
-      icon: Calendar,
-    },
-    {
       href: "/analysen",
       label: "Analysen & KPIs",
       icon: TrendingUp,
+    },
+    {
+      href: "/",
+      label: "Mitarbeiter",
+      icon: Briefcase,
     },
   ];
 
