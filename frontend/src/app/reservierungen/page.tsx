@@ -129,20 +129,31 @@ export default function ReservationsPage() {
   });
 
   const { data: reservierungen = [] } = useQuery({
-    queryKey: ["reservierungen"],
-    queryFn: () =>
-      executeQuery<Reservierung[]>(
-        `SELECT r.id, r.start as check_in_datum, r.ende as check_out_datum, r.status_id, r.gast_id, r.zimmer_id,
-                r.fruehstueck, r.parkplatz, r.bemerkung,
-                g.vorname, g.nachname, g.email, g.telefonnummer, g.strasse, g.hausnummer, g.postleitzahl, g.stadt, g.land,
-                z.nummer as zimmer_nummer, k.preis as zimmer_preis, s.name as status
-         FROM Reservierung r 
-         JOIN Gast g ON r.gast_id = g.id 
-         JOIN zimmer z ON r.zimmer_id = z.id 
-         JOIN Kategorie k ON z.kategorie_id = k.id
-         LEFT JOIN Status s ON r.status_id = s.id
-         ORDER BY r.start DESC`
-      ),
+    queryKey: ["reservierungen", currentWeekStart.toISOString(), filterStatus],
+    queryFn: () => {
+      const startStr = currentWeekStart.toISOString().split('T')[0];
+      const endStr = weekEnd.toISOString().split('T')[0];
+      
+      let q = `
+        SELECT r.id, r.start as check_in_datum, r.ende as check_out_datum, r.status_id, r.gast_id, r.zimmer_id,
+               r.fruehstueck, r.parkplatz, r.bemerkung,
+               g.vorname, g.nachname, g.email, g.telefonnummer, g.strasse, g.hausnummer, g.postleitzahl, g.stadt, g.land,
+               z.nummer as zimmer_nummer, k.preis as zimmer_preis, s.name as status
+        FROM Reservierung r 
+        JOIN Gast g ON r.gast_id = g.id 
+        JOIN zimmer z ON r.zimmer_id = z.id 
+        JOIN Kategorie k ON z.kategorie_id = k.id
+        LEFT JOIN Status s ON r.status_id = s.id
+        WHERE r.start <= '${endStr} 23:59:59' AND r.ende >= '${startStr} 00:00:00'
+      `;
+
+      if (filterStatus !== "all") {
+        q += ` AND r.status_id = ${filterStatus}`;
+      }
+
+      q += ` ORDER BY r.start DESC`;
+      return executeQuery<Reservierung[]>(q);
+    }
   });
 
   const { data: zimmer = [] } = useQuery({
@@ -184,15 +195,8 @@ export default function ReservationsPage() {
     onError: (err: any) => alert(err.message),
   });
 
-  const filteredReservierungen = reservierungen.filter(res => {
-    const checkIn = new Date(res.check_in_datum);
-    checkIn.setHours(0, 0, 0, 0);
-    const checkOut = new Date(res.check_out_datum);
-    checkOut.setHours(23, 59, 59, 999);
-    const matchesWeek = checkIn <= weekEnd && checkOut >= currentWeekStart;
-    const matchesStatus = filterStatus === "all" || res.status_id?.toString() === filterStatus;
-    return matchesWeek && matchesStatus;
-  });
+  // Filtering is now handled directly by the SQL database query above.
+  const filteredReservierungen = reservierungen;
 
   return (
     <main className="flex-1 flex flex-col min-h-0 overflow-hidden">

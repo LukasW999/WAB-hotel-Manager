@@ -24,31 +24,49 @@ type ZimmerCount = {
   anzahl: number;
 };
 
-const getSeason = (dateStr: string) => {
-  const d = new Date(dateStr);
-  const m = d.getMonth();
-  if (m === 11 || m === 0 || m === 1) return "Winter";
-  if (m >= 2 && m <= 4) return "Frühling";
-  if (m >= 5 && m <= 7) return "Sommer";
-  return "Herbst";
+const buildQuery = (jahr: string, saison: string) => {
+  let whereClauses = ["r.status_id != 3"]; // Ignore 'Storniert'
+
+  if (jahr !== "Alle") {
+    whereClauses.push(`EXTRACT(YEAR FROM r.start) = ${jahr}`);
+  }
+
+  if (saison !== "Alle") {
+    if (saison === "Winter") {
+      whereClauses.push(`EXTRACT(MONTH FROM r.start) IN (12, 1, 2)`);
+    } else if (saison === "Frühling") {
+      whereClauses.push(`EXTRACT(MONTH FROM r.start) IN (3, 4, 5)`);
+    } else if (saison === "Sommer") {
+      whereClauses.push(`EXTRACT(MONTH FROM r.start) IN (6, 7, 8)`);
+    } else if (saison === "Herbst") {
+      whereClauses.push(`EXTRACT(MONTH FROM r.start) IN (9, 10, 11)`);
+    }
+  }
+
+  return `
+    SELECT r.id, r.start, r.ende, r.status_id, r.fruehstueck, r.parkplatz,
+           k.name as kategorie_name, k.preis, s.name as status_name
+    FROM Reservierung r
+    JOIN zimmer z ON r.zimmer_id = z.id
+    JOIN Kategorie k ON z.kategorie_id = k.id
+    LEFT JOIN Status s ON r.status_id = s.id
+    WHERE ${whereClauses.join(" AND ")}
+  `;
 };
 
 export default function AnalysenPage() {
   const [filterSaison, setFilterSaison] = useState<string>("Alle");
   const [filterJahr, setFilterJahr] = useState<string>("Alle");
 
-  const { data: reservierungen = [], isLoading: isLoadingRes } = useQuery({
-    queryKey: ["analysen_reservierungen"],
-    queryFn: () =>
-      executeQuery<ReservationAnalyticsInfo[]>(
-        `SELECT r.id, r.start, r.ende, r.status_id, r.fruehstueck, r.parkplatz,
-                k.name as kategorie_name, k.preis,
-                s.name as status_name
-         FROM Reservierung r
-         JOIN zimmer z ON r.zimmer_id = z.id
-         JOIN Kategorie k ON z.kategorie_id = k.id
-         LEFT JOIN Status s ON r.status_id = s.id`
-      ),
+  const { data: currentData = [], isLoading: isLoadingCur } = useQuery({
+    queryKey: ["analysen_reservierungen", filterJahr, filterSaison],
+    queryFn: () => executeQuery<ReservationAnalyticsInfo[]>(buildQuery(filterJahr, filterSaison)),
+  });
+
+  const { data: vorjahrData = [], isLoading: isLoadingVor } = useQuery({
+    queryKey: ["analysen_reservierungen_vorjahr", filterJahr, filterSaison],
+    queryFn: () => executeQuery<ReservationAnalyticsInfo[]>(buildQuery((parseInt(filterJahr) - 1).toString(), filterSaison)),
+    enabled: filterJahr !== "Alle"
   });
 
   const { data: zimmerData = [] } = useQuery({
@@ -56,33 +74,28 @@ export default function AnalysenPage() {
     queryFn: () => executeQuery<ZimmerCount[]>("SELECT COUNT(id) as anzahl FROM zimmer WHERE aktiv = true"),
   });
 
+  const { data: availableYearsData = [] } = useQuery({
+    queryKey: ["available_years"],
+    queryFn: () => executeQuery<{yr: number}[]>(`SELECT DISTINCT EXTRACT(YEAR FROM start) as yr FROM Reservierung ORDER BY yr DESC`)
+  });
+
   const availableYears = useMemo(() => {
-    const years = new Set<number>();
-    reservierungen.forEach(r => years.add(new Date(r.start).getFullYear()));
-    return Array.from(years).sort((a, b) => b - a);
-  }, [reservierungen]);
+    return availableYearsData.map(d => d.yr);
+  }, [availableYearsData]);
 
   const activeRoomsCount = zimmerData[0]?.anzahl || 1;
+  const isLoadingRes = isLoadingCur || (filterJahr !== "Alle" && isLoadingVor);
 
   const { metrics, trends, metricsVorjahr } = useMemo(() => {
-    const calculateForYear = (yearFilter: string) => {
-      const filtered = reservierungen.filter((r) => {
-        if (r.status_id === 3 || r.status_name === "Storniert") return false;
-        
-        if (yearFilter !== "Alle" && new Date(r.start).getFullYear().toString() !== yearFilter) return false;
-        if (filterSaison !== "Alle" && getSeason(r.start) !== filterSaison) return false;
-        
-        return true;
-      });
-
+    const aggregate = (data: ReservationAnalyticsInfo[]) => {
       let totalRevenue = 0;
       let occupiedNights = 0;
-      let totalBookings = filtered.length;
+      let totalBookings = data.length;
       let breakfastCount = 0;
       let parkingCount = 0;
       const categoryCounts: Record<string, number> = {};
 
-      filtered.forEach((r) => {
+      data.forEach((r) => {
         const dStart = new Date(r.start);
         const dEnd = new Date(r.ende);
         dStart.setHours(0,0,0,0);
@@ -131,11 +144,11 @@ export default function AnalysenPage() {
       };
     };
 
-    const current = calculateForYear(filterJahr);
-    const vorjahr = filterJahr !== "Alle" ? calculateForYear((parseInt(filterJahr) - 1).toString()) : null;
+    const current = aggregate(currentData);
+    const vorjahr = filterJahr !== "Alle" ? aggregate(vorjahrData) : null;
 
     return { metrics: current, trends: current.trends, metricsVorjahr: vorjahr };
-  }, [reservierungen, filterSaison, filterJahr, activeRoomsCount]);
+  }, [currentData, vorjahrData, filterSaison, filterJahr, activeRoomsCount]);
 
   const renderDiff = (current: number, previous: number | null | undefined, reverseColors: boolean = false) => {
     if (previous === null || previous === undefined || previous === 0) return null;
