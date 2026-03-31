@@ -120,12 +120,48 @@ INSERT INTO Status (name) VALUES
 
 INSERT INTO Gast (vorname, nachname, email, telefonnummer, strasse, hausnummer, postleitzahl, stadt, land) VALUES
 ('Max', 'Mustermann', 'max.mustermann@example.com', '0123456789', 'Musterstraße', '1', '12345', 'Musterstadt', 'Deutschland'),
-('Erika', 'Mustermann', 'erika.mustermann@example.com', '0987654321', 'Musterstraße', '1', '12345', 'Musterstadt', 'Deutschland');
+('Erika', 'Mustermann', 'erika.mustermann@example.com', '0987654321', 'Musterstraße', '1', '12345', 'Musterstadt', 'Deutschland'),
+('Johannes', 'Schmidt', 'j.schmidt@mail.de', '0151123456', 'Goetheplatz', '42', '80331', 'München', 'Deutschland'),
+('Anna', 'Weber', 'anna.weber@gmx.at', '+4312345', 'Wiener Gasse', '7', '1010', 'Wien', 'Österreich'),
+('Thomas', 'Wagner', 't.wagner@firma.ch', '+4198765', 'Kastanienweg', '12', '8001', 'Zürich', 'Schweiz'),
+('Sabine', 'Müller', 'sabine.mueller@web.de', '0172555666', 'Lindenallee', '99', '10115', 'Berlin', 'Deutschland'),
+('Klaus', 'Fischer', 'k.fischer@test.de', '0160999888', 'Hauptstraße', '5', '50667', 'Köln', 'Deutschland'),
+('Maria', 'Meyer', 'maria.m@meyer-logistics.de', '0171333444', 'Hafenrand', '1', '20457', 'Hamburg', 'Deutschland'),
+('Lukas', 'Klein', 'klein.lukas@info.de', '0152888777', 'Berliner Ring', '15', '60311', 'Frankfurt', 'Deutschland'),
+('Julia', 'Hoffmann', 'j.hoff@mail.com', '0170111222', 'Schlossplatz', '3', '70173', 'Stuttgart', 'Deutschland');
 
-INSERT INTO Reservierung (start, ende, gast_id, status_id, zimmer_id) VALUES
-('2026-03-27', '2026-03-31', 1, 1, 1),
-('2026-04-05', '2026-04-12', 2, 2, 4);
+-- Winter: Much breakfast
+-- Spring: Mixed
+-- Summer: Many Suites (zimmer_id 6)
+-- Autumn: Mixed
+INSERT INTO Reservierung (start, ende, gast_id, status_id, zimmer_id, fruehstueck, parkplatz) VALUES
+-- Winter 2025/2026
+('2025-12-20', '2025-12-27', 3, 5, 2, true, true),   -- Abgereist, Winter, Frühstück + Parkplatz
+('2026-01-05', '2026-01-10', 4, 5, 4, true, false),  -- Abgereist, Winter, Frühstück
+('2026-01-15', '2026-01-17', 5, 5, 1, true, false),  -- Abgereist, Winter, Frühstück
+('2026-02-10', '2026-02-14', 6, 5, 5, true, true),   -- Abgereist, Winter, Frühstück
+('2026-02-20', '2026-02-25', 7, 5, 1, true, false),  -- Abgereist, Winter, Frühstück
+-- Spring 2026
+('2026-03-27', '2026-03-31', 1, 1, 1, false, false), -- Anfrage, FRÜHLING
+('2026-04-05', '2026-04-12', 2, 2, 4, true, true),   -- Bestätigt, FRÜHLING
+('2026-04-20', '2026-04-22', 8, 4, 2, false, true),  -- Check-in erfolgt, FRÜHLING
+('2026-05-01', '2026-05-05', 9, 2, 1, false, false), -- Bestätigt, FRÜHLING
+('2026-05-15', '2026-05-20', 10, 2, 3, true, true),  -- Bestätigt, FRÜHLING
+('2026-05-25', '2026-05-28', 3, 3, 4, false, false), -- Storniert, FRÜHLING
+-- Summer 2026 (SUITEN BOOST)
+('2026-06-10', '2026-06-17', 4, 2, 6, false, true),  -- Bestätigt, SOMMER, Suite
+('2026-07-01', '2026-07-14', 5, 2, 6, true, true),   -- Bestätigt, SOMMER, Suite
+('2026-07-20', '2026-07-25', 6, 2, 4, false, false), -- Bestätigt, SOMMER
+('2026-08-01', '2026-08-10', 7, 1, 6, false, true),  -- Anfrage, SOMMER, Suite
+('2026-08-15', '2026-08-22', 8, 2, 6, false, true),  -- Bestätigt, SOMMER, Suite
+('2026-08-25', '2026-08-30', 9, 2, 2, true, false),  -- Bestätigt, SOMMER
+-- Autumn 2026
+('2026-09-10', '2026-09-15', 10, 2, 4, false, true), -- Bestätigt, HERBST
+('2026-10-01', '2026-10-05', 1, 1, 1, true, false),  -- Anfrage, HERBST
+('2026-10-15', '2026-10-20', 2, 1, 5, false, true),  -- Anfrage, HERBST
+('2026-11-05', '2026-11-08', 3, 1, 2, true, true);   -- Anfrage, HERBST
 
 INSERT INTO Mitarbeiter (vorname, nachname, email, telefonnummer) VALUES
 ('Peter', 'Müller', 'peter.mueller@hotel.com', '0111222333'),
-('Sarah', 'Schmidt', 'sarah.schmidt@hotel.com', '0444555666');
+('Sarah', 'Schmidt', 'sarah.schmidt@hotel.com', '0444555666'),
+('Thomas', 'Bauer', 'thomas.bauer@hotel.com', '0555666777');

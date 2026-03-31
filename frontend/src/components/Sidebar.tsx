@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Building2, Briefcase, Bed, Calendar } from "lucide-react";
+import { Building2, Briefcase, Bed, Calendar, TrendingUp } from "lucide-react";
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -22,6 +22,11 @@ export function Sidebar() {
       href: "/reservierungen",
       label: "Reservierungen",
       icon: Calendar,
+    },
+    {
+      href: "/analysen",
+      label: "Analysen & KPIs",
+      icon: TrendingUp,
     },
   ];
 
