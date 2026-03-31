@@ -8,23 +8,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { TrendingUp, DollarSign, CalendarDays, BedDouble, Target, Activity, Coffee, Car, ArrowUp, ArrowDown, Minus } from "lucide-react";
 
-type ReservationAnalyticsInfo = {
-  id: number;
-  start: string;
-  ende: string;
-  status_id: number;
-  status_name: string;
-  kategorie_name: string;
-  preis: number;
-  fruehstueck: boolean;
-  parkplatz: boolean;
+type DbKPIResult = {
+  totalrevenue: number;
+  adr: number;
+  revpar: number;
+  occupancy: number;
+  alos: number;
+  topcategory: string;
+  breakfastratio: number;
+  parkingratio: number;
 };
 
-type ZimmerCount = {
-  anzahl: number;
-};
-
-const buildQuery = (jahr: string, saison: string) => {
+const buildQuery = (jahr: string, saison: string, daysInPeriod: number) => {
   let whereClauses = ["r.status_id != 3"]; // Ignore 'Storniert'
 
   if (jahr !== "Alle") {
@@ -44,13 +39,54 @@ const buildQuery = (jahr: string, saison: string) => {
   }
 
   return `
-    SELECT r.id, r.start, r.ende, r.status_id, r.fruehstueck, r.parkplatz,
-           k.name as kategorie_name, k.preis, s.name as status_name
-    FROM Reservierung r
-    JOIN zimmer z ON r.zimmer_id = z.id
-    JOIN Kategorie k ON z.kategorie_id = k.id
-    LEFT JOIN Status s ON r.status_id = s.id
-    WHERE ${whereClauses.join(" AND ")}
+    WITH FilteredData AS (
+        SELECT 
+          r.id,
+          r.fruehstueck,
+          r.parkplatz,
+          k.preis as room_price,
+          k.name as kategorie_name,
+          GREATEST(1, r.ende::date - r.start::date) as nights,
+          COALESCE((SELECT SUM(zl.preis) FROM Zusatzleistung zl WHERE zl.reservierung_id = r.id), 0) as angebote_revenue
+        FROM Reservierung r
+        JOIN zimmer z ON r.zimmer_id = z.id
+        JOIN Kategorie k ON z.kategorie_id = k.id
+        WHERE ${whereClauses.join(" AND ")}
+    ),
+    Aggregations AS (
+        SELECT 
+          COUNT(id) as total_bookings,
+          COALESCE(SUM(nights), 0) as occupied_nights,
+          COALESCE(SUM(
+            ((room_price + 
+             (CASE WHEN fruehstueck THEN 15 ELSE 0 END) + 
+             (CASE WHEN parkplatz THEN 10 ELSE 0 END)) * nights) + angebote_revenue
+          ), 0) as total_revenue,
+          COALESCE(SUM(CASE WHEN fruehstueck THEN 1 ELSE 0 END), 0) as breakfast_count,
+          COALESCE(SUM(CASE WHEN parkplatz THEN 1 ELSE 0 END), 0) as parking_count
+        FROM FilteredData
+    ),
+    RoomInfo AS (
+        SELECT COUNT(id) as total_rooms FROM zimmer WHERE aktiv = true
+    ),
+    CategoryStats AS (
+        SELECT kategorie_name
+        FROM FilteredData
+        GROUP BY kategorie_name
+        ORDER BY COUNT(id) DESC
+        LIMIT 1
+    )
+    SELECT 
+      a.total_revenue::float as totalrevenue,
+      CASE WHEN a.occupied_nights > 0 THEN a.total_revenue / a.occupied_nights ELSE 0 END as adr,
+      CASE WHEN (ri.total_rooms * ${daysInPeriod}) > 0 THEN a.total_revenue::float / (ri.total_rooms * ${daysInPeriod}) ELSE 0 END as revpar,
+      CASE WHEN (ri.total_rooms * ${daysInPeriod}) > 0 THEN (a.occupied_nights::float / (ri.total_rooms * ${daysInPeriod})) * 100 ELSE 0 END as occupancy,
+      CASE WHEN a.total_bookings > 0 THEN a.occupied_nights::float / a.total_bookings ELSE 0 END as alos,
+      COALESCE((SELECT kategorie_name FROM CategoryStats), 'Keine Daten') as topcategory,
+      CASE WHEN a.total_bookings > 0 THEN (a.breakfast_count::float / a.total_bookings) * 100 ELSE 0 END as breakfastratio,
+      CASE WHEN a.total_bookings > 0 THEN (a.parking_count::float / a.total_bookings) * 100 ELSE 0 END as parkingratio
+    FROM Aggregations a
+    CROSS JOIN RoomInfo ri
   `;
 };
 
@@ -58,20 +94,17 @@ export default function AnalysenPage() {
   const [filterSaison, setFilterSaison] = useState<string>("Alle");
   const [filterJahr, setFilterJahr] = useState<string>("Alle");
 
-  const { data: currentData = [], isLoading: isLoadingCur } = useQuery({
-    queryKey: ["analysen_reservierungen", filterJahr, filterSaison],
-    queryFn: () => executeQuery<ReservationAnalyticsInfo[]>(buildQuery(filterJahr, filterSaison)),
+  const daysInPeriod = filterSaison === "Alle" ? 365 : 91;
+
+  const { data: currentDbData = [], isLoading: isLoadingCur } = useQuery({
+    queryKey: ["analysen_kpi", filterJahr, filterSaison, daysInPeriod],
+    queryFn: () => executeQuery<DbKPIResult[]>(buildQuery(filterJahr, filterSaison, daysInPeriod)),
   });
 
-  const { data: vorjahrData = [], isLoading: isLoadingVor } = useQuery({
-    queryKey: ["analysen_reservierungen_vorjahr", filterJahr, filterSaison],
-    queryFn: () => executeQuery<ReservationAnalyticsInfo[]>(buildQuery((parseInt(filterJahr) - 1).toString(), filterSaison)),
+  const { data: vorjahrDbData = [], isLoading: isLoadingVor } = useQuery({
+    queryKey: ["analysen_kpi_vorjahr", filterJahr, filterSaison, daysInPeriod],
+    queryFn: () => executeQuery<DbKPIResult[]>(buildQuery((parseInt(filterJahr) - 1).toString(), filterSaison, daysInPeriod)),
     enabled: filterJahr !== "Alle"
-  });
-
-  const { data: zimmerData = [] } = useQuery({
-    queryKey: ["analysen_zimmer_count"],
-    queryFn: () => executeQuery<ZimmerCount[]>("SELECT COUNT(id) as anzahl FROM zimmer WHERE aktiv = true"),
   });
 
   const { data: availableYearsData = [] } = useQuery({
@@ -83,72 +116,34 @@ export default function AnalysenPage() {
     return availableYearsData.map(d => d.yr);
   }, [availableYearsData]);
 
-  const activeRoomsCount = zimmerData[0]?.anzahl || 1;
   const isLoadingRes = isLoadingCur || (filterJahr !== "Alle" && isLoadingVor);
 
   const { metrics, trends, metricsVorjahr } = useMemo(() => {
-    const aggregate = (data: ReservationAnalyticsInfo[]) => {
-      let totalRevenue = 0;
-      let occupiedNights = 0;
-      let totalBookings = data.length;
-      let breakfastCount = 0;
-      let parkingCount = 0;
-      const categoryCounts: Record<string, number> = {};
-
-      data.forEach((r) => {
-        const dStart = new Date(r.start);
-        const dEnd = new Date(r.ende);
-        dStart.setHours(0,0,0,0);
-        dEnd.setHours(0,0,0,0);
-        
-        const diffTime = Math.abs(dEnd.getTime() - dStart.getTime());
-        const nights = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
-        
-        occupiedNights += nights;
-        const roomRev = r.preis * nights;
-        const extraRev = (r.fruehstueck ? 15 * nights : 0) + (r.parkplatz ? 10 * nights : 0);
-        
-        totalRevenue += (roomRev + extraRev);
-
-        if (r.fruehstueck) breakfastCount++;
-        if (r.parkplatz) parkingCount++;
-
-        categoryCounts[r.kategorie_name] = (categoryCounts[r.kategorie_name] || 0) + 1;
-      });
-
-      // Approximate days in period
-      const daysInPeriod = filterSaison === "Alle" ? 365 : 91;
-      const availableNights = activeRoomsCount * daysInPeriod;
-
-      const adr = occupiedNights > 0 ? totalRevenue / occupiedNights : 0;
-      const revPar = totalRevenue / availableNights;
-      const occupancy = availableNights > 0 ? (occupiedNights / availableNights) * 100 : 0;
-      const alos = totalBookings > 0 ? occupiedNights / totalBookings : 0;
-
-      let topCat = "Keine Daten";
-      let maxCatVal = 0;
-      for (const [cat, count] of Object.entries(categoryCounts)) {
-        if (count > maxCatVal) {
-          maxCatVal = count;
-          topCat = cat;
-        }
-      }
-
+    const mapDbToMetrics = (dbRow?: DbKPIResult) => {
+      if (!dbRow) return null;
       return {
-        totalRevenue, adr, revPar, occupancy, alos,
+        totalRevenue: dbRow.totalrevenue || 0,
+        adr: dbRow.adr || 0,
+        revPar: dbRow.revpar || 0,
+        occupancy: dbRow.occupancy || 0,
+        alos: dbRow.alos || 0,
         trends: {
-          topCategory: topCat,
-          breakfastRatio: totalBookings > 0 ? (breakfastCount / totalBookings) * 100 : 0,
-          parkingRatio: totalBookings > 0 ? (parkingCount / totalBookings) * 100 : 0,
+          topCategory: dbRow.topcategory || "Keine Daten",
+          breakfastRatio: dbRow.breakfastratio || 0,
+          parkingRatio: dbRow.parkingratio || 0,
         }
       };
     };
 
-    const current = aggregate(currentData);
-    const vorjahr = filterJahr !== "Alle" ? aggregate(vorjahrData) : null;
+    const current = mapDbToMetrics(currentDbData[0]) || {
+      totalRevenue: 0, adr: 0, revPar: 0, occupancy: 0, alos: 0,
+      trends: { topCategory: "Keine Daten", breakfastRatio: 0, parkingRatio: 0 }
+    };
+
+    const vorjahr = filterJahr !== "Alle" ? mapDbToMetrics(vorjahrDbData[0]) : null;
 
     return { metrics: current, trends: current.trends, metricsVorjahr: vorjahr };
-  }, [currentData, vorjahrData, filterSaison, filterJahr, activeRoomsCount]);
+  }, [currentDbData, vorjahrDbData, filterJahr]);
 
   const renderDiff = (current: number, previous: number | null | undefined, reverseColors: boolean = false) => {
     if (previous === null || previous === undefined || previous === 0) return null;
