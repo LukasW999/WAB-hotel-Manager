@@ -24,7 +24,7 @@ export function Sidebar() {
       icon: TrendingUp,
     },
     {
-      href: "/",
+      href: "/mitarbeiter",
       label: "Mitarbeiter",
       icon: Briefcase,
     },
