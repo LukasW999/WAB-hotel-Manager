@@ -576,8 +576,14 @@ function GuestForm({ onSave, initialData }: { onSave: (id?: number) => void, ini
         await executeQuery(`UPDATE Gast SET vorname = '${formData.vorname}', nachname = '${formData.nachname}', email = '${formData.email}', telefonnummer = '${formData.telefonnummer}', strasse = '${formData.strasse}', hausnummer = '${formData.hausnummer}', postleitzahl = '${formData.postleitzahl}', stadt = '${formData.stadt}', land = '${formData.land}' WHERE id = ${initialData.id}`);
         return initialData.id;
       } else {
-        await executeQuery(`INSERT INTO Gast (vorname, nachname, email, telefonnummer, strasse, hausnummer, postleitzahl, stadt, land) VALUES ('${formData.vorname}', '${formData.nachname}', '${formData.email}', '${formData.telefonnummer}', '${formData.strasse}', '${formData.hausnummer}', '${formData.postleitzahl}', '${formData.stadt}', '${formData.land}')`);
-        const res = await executeQuery<{ id: number }[]>("SELECT MAX(id) as id FROM Gast");
+        const res = await executeQuery<{ id: number }[]>(`
+          WITH inserted_gast AS (
+            INSERT INTO Gast (vorname, nachname, email, telefonnummer, strasse, hausnummer, postleitzahl, stadt, land) 
+            VALUES ('${formData.vorname}', '${formData.nachname}', '${formData.email}', '${formData.telefonnummer}', '${formData.strasse}', '${formData.hausnummer}', '${formData.postleitzahl}', '${formData.stadt}', '${formData.land}')
+            RETURNING id
+          )
+          SELECT id FROM inserted_gast
+        `);
         return res[0].id;
       }
     },
@@ -663,40 +669,74 @@ function ReservationForm({ gäste, zimmer, onSave, initialData }: { gäste: Gast
   const mutation = useMutation({
     mutationFn: async () => {
       if (!isValid) throw new Error("Bitte alle Felder korrekt ausfüllen.");
-      let gastId = selectedGuestId;
-
-      if (!useExistingGuest) {
-        await executeQuery(`INSERT INTO Gast (vorname, nachname, email, telefonnummer, strasse, hausnummer, postleitzahl, stadt, land) VALUES ('${guestFormData.vorname}', '${guestFormData.nachname}', '${guestFormData.email}', '${guestFormData.telefonnummer}', '${guestFormData.strasse}', '${guestFormData.hausnummer}', '${guestFormData.postleitzahl}', '${guestFormData.stadt}', '${guestFormData.land}')`);
-        const res = await executeQuery<{ id: number }[]>("SELECT MAX(id) as id FROM Gast");
-        gastId = res[0].id.toString();
-      }
-
-      let targetResId: number;
       if (isEditing) {
-        await executeQuery(
-          `UPDATE Reservierung SET 
-            gast_id = ${gastId}, 
-            zimmer_id = ${resData.zimmer_id}, 
-            start = '${resData.check_in}', 
-            ende = '${resData.check_out}', 
-            fruehstueck = ${resData.fruehstueck}, 
-            parkplatz = ${resData.parkplatz}, 
-            bemerkung = '${resData.bemerkung.replace(/'/g, "''")}' 
-          WHERE id = ${initialData.id}`
-        );
-        targetResId = initialData.id;
-      } else {
-        await executeQuery(
-          `INSERT INTO Reservierung (gast_id, zimmer_id, start, ende, status_id, fruehstueck, parkplatz, bemerkung) 
-           VALUES (${gastId}, ${resData.zimmer_id}, '${resData.check_in}', '${resData.check_out}', 1, ${resData.fruehstueck}, ${resData.parkplatz}, '${resData.bemerkung.replace(/'/g, "''")}')`
-        );
-        const res = await executeQuery<{ id: number }[]>("SELECT MAX(id) as id FROM Reservierung");
-        targetResId = res[0].id;
-      }
+        let updateQuery = `
+          WITH updated_res AS (
+            UPDATE Reservierung SET 
+              gast_id = ${selectedGuestId}, 
+              zimmer_id = ${resData.zimmer_id}, 
+              start = '${resData.check_in}', 
+              ende = '${resData.check_out}', 
+              fruehstueck = ${resData.fruehstueck}, 
+              parkplatz = ${resData.parkplatz}, 
+              bemerkung = '${resData.bemerkung.replace(/'/g, "''")}' 
+            WHERE id = ${initialData.id}
+            RETURNING id
+          ),
+          deleted_mit AS (
+            DELETE FROM Mitreisender WHERE reservierung_id = ${initialData.id}
+          )`;
 
-      await executeQuery(`DELETE FROM Mitreisender WHERE reservierung_id = ${targetResId}`);
-      for (const m of resData.mitreisende) {
-         await executeQuery(`INSERT INTO Mitreisender (reservierung_id, vorname, nachname, geburtsdatum) VALUES (${targetResId}, '${m.vorname}', '${m.nachname}', '${m.geburtsdatum}')`);
+        if (resData.mitreisende.length > 0) {
+          const mit_values = resData.mitreisende.map(m => 
+            `((SELECT id FROM updated_res), '${m.vorname}', '${m.nachname}', ${m.geburtsdatum ? `'${m.geburtsdatum}'` : 'NULL'})`
+          ).join(", ");
+          
+          updateQuery += `,
+          inserted_mit AS (
+            INSERT INTO Mitreisender (reservierung_id, vorname, nachname, geburtsdatum) 
+            VALUES ${mit_values}
+          )`;
+        }
+        
+        updateQuery += ` SELECT id FROM updated_res`;
+        await executeQuery(updateQuery);
+      } else {
+        let insertQuery = "WITH ";
+        let hasPrevious = false;
+        
+        if (!useExistingGuest) {
+          insertQuery += `new_gast AS (
+            INSERT INTO Gast (vorname, nachname, email, telefonnummer, strasse, hausnummer, postleitzahl, stadt, land) 
+            VALUES ('${guestFormData.vorname}', '${guestFormData.nachname}', '${guestFormData.email}', '${guestFormData.telefonnummer}', '${guestFormData.strasse}', '${guestFormData.hausnummer}', '${guestFormData.postleitzahl}', '${guestFormData.stadt}', '${guestFormData.land}')
+            RETURNING id
+          )`;
+          hasPrevious = true;
+        }
+
+        const gastIdRef = useExistingGuest ? selectedGuestId : "(SELECT id FROM new_gast)";
+        
+        insertQuery += (hasPrevious ? `,
+          ` : "") + `new_res AS (
+          INSERT INTO Reservierung (gast_id, zimmer_id, start, ende, status_id, fruehstueck, parkplatz, bemerkung) 
+          VALUES (${gastIdRef}, ${resData.zimmer_id}, '${resData.check_in}', '${resData.check_out}', 1, ${resData.fruehstueck}, ${resData.parkplatz}, '${resData.bemerkung.replace(/'/g, "''")}')
+          RETURNING id
+        )`;
+
+        if (resData.mitreisende.length > 0) {
+          const mit_values = resData.mitreisende.map(m => 
+            `((SELECT id FROM new_res), '${m.vorname}', '${m.nachname}', ${m.geburtsdatum ? `'${m.geburtsdatum}'` : 'NULL'})`
+          ).join(", ");
+          
+          insertQuery += `,
+          new_mitreisende AS (
+            INSERT INTO Mitreisender (reservierung_id, vorname, nachname, geburtsdatum) 
+            VALUES ${mit_values}
+          )`;
+        }
+
+        insertQuery += ` SELECT id FROM new_res`;
+        await executeQuery(insertQuery);
       }
     },
     onSuccess: onSave

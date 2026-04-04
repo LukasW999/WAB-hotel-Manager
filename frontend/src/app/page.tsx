@@ -262,36 +262,46 @@ function EmployeeForm({
       let empId = employee?.id;
 
       if (!isEditing) {
-        // Create - Note: jdbc update count trick doesn't give us ID directly unless we max query
-        await executeQuery(
-          `INSERT INTO Mitarbeiter (vorname, nachname, email, telefonnummer, geburtsdatum) 
-           VALUES ('${formData.vorname}', '${formData.nachname}', '${formData.email}', '${formData.telefonnummer}', '${formData.geburtsdatum}')`
-        );
-        // Get the new ID
-        const res = await executeQuery<{ id: number }[]>("SELECT MAX(id) as id FROM Mitarbeiter");
+        // Create atomic utilizing Data-Modifying CTE
+        const insertQuery = `
+          WITH new_emp AS (
+            INSERT INTO Mitarbeiter (vorname, nachname, email, telefonnummer, geburtsdatum) 
+            VALUES ('${formData.vorname}', '${formData.nachname}', '${formData.email}', '${formData.telefonnummer}', '${formData.geburtsdatum}')
+            RETURNING id
+          )
+          ${selectedStatuses.length > 0 ? `,
+          assigned_status AS (
+            INSERT INTO Wird_Betreut_Von (mitarbeiter_id, status_id)
+            VALUES ${selectedStatuses.map(s => `((SELECT id FROM new_emp), ${s})`).join(', ')}
+          )` : ''}
+          SELECT id FROM new_emp
+        `;
+        const res = await executeQuery<{ id: number }[]>(insertQuery);
         empId = res[0].id;
       } else {
-        // Update
-        await executeQuery(
-          `UPDATE Mitarbeiter SET 
-            vorname = '${formData.vorname}', 
-            nachname = '${formData.nachname}', 
-            email = '${formData.email}', 
-            telefonnummer = '${formData.telefonnummer}', 
-            geburtsdatum = '${formData.geburtsdatum}' 
-           WHERE id = ${empId}`
-        );
-      }
-
-      // Sync Statuses
-      if (empId) {
-        // Clear all current statuses for this employee
-        await executeQuery(`DELETE FROM Wird_Betreut_Von WHERE mitarbeiter_id = ${empId}`);
-
-        // Insert new ones
-        for (const statusId of selectedStatuses) {
-          await executeQuery(`INSERT INTO Wird_Betreut_Von (mitarbeiter_id, status_id) VALUES (${empId}, ${statusId})`);
-        }
+        // Update atomic utilizing Data-Modifying CTE
+        const updateQuery = `
+          WITH updated_emp AS (
+            UPDATE Mitarbeiter SET 
+              vorname = '${formData.vorname}', 
+              nachname = '${formData.nachname}', 
+              email = '${formData.email}', 
+              telefonnummer = '${formData.telefonnummer}', 
+              geburtsdatum = '${formData.geburtsdatum}' 
+            WHERE id = ${empId}
+            RETURNING id
+          ),
+          deleted_status AS (
+            DELETE FROM Wird_Betreut_Von WHERE mitarbeiter_id = ${empId}
+          )
+          ${selectedStatuses.length > 0 ? `,
+          inserted_status AS (
+            INSERT INTO Wird_Betreut_Von (mitarbeiter_id, status_id)
+            VALUES ${selectedStatuses.map(s => `(${empId}, ${s})`).join(', ')}
+          )` : ''}
+          SELECT id FROM updated_emp
+        `;
+        await executeQuery(updateQuery);
       }
     },
     onSuccess: onSave,
