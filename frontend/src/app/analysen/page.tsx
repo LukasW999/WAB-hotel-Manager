@@ -41,21 +41,21 @@ const buildQuery = (jahr: string, saison: string, daysInPeriod: number) => {
   return `
     WITH FilteredData AS (
         SELECT 
-          r.id,
+          r.reservierung_id,
           r.fruehstueck,
           r.parkplatz,
           k.preis as room_price,
           k.name as kategorie_name,
           GREATEST(1, r.ende::date - r.start::date) as nights,
-          COALESCE((SELECT SUM(zl.preis) FROM Zusatzleistung zl WHERE zl.reservierung_id = r.id), 0) as angebote_revenue
+          COALESCE((SELECT SUM(zl.preis) FROM Zusatzleistung zl WHERE zl.reservierung_id = r.reservierung_id), 0) as angebote_revenue
         FROM Reservierung r
-        JOIN zimmer z ON r.zimmer_id = z.id
-        JOIN Kategorie k ON z.kategorie_id = k.id
+        JOIN zimmer z ON r.zimmer_id = z.zimmer_id
+        JOIN Kategorie k ON z.kategorie_id = k.kategorie_id
         WHERE ${whereClauses.join(" AND ")}
     ),
     Aggregations AS (
         SELECT 
-          COUNT(id) as total_bookings,
+          COUNT(reservierung_id) as total_bookings,
           COALESCE(SUM(nights), 0) as occupied_nights,
           COALESCE(SUM(
             ((room_price + 
@@ -67,13 +67,13 @@ const buildQuery = (jahr: string, saison: string, daysInPeriod: number) => {
         FROM FilteredData
     ),
     RoomInfo AS (
-        SELECT COUNT(id) as total_rooms FROM zimmer WHERE aktiv = true
+        SELECT COUNT(zimmer_id) as total_rooms FROM zimmer WHERE aktiv = true
     ),
     CategoryStats AS (
         SELECT kategorie_name
         FROM FilteredData
         GROUP BY kategorie_name
-        ORDER BY COUNT(id) DESC
+        ORDER BY COUNT(reservierung_id) DESC
         LIMIT 1
     )
     SELECT 

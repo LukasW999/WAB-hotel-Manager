@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Search, Plus, Pencil, Trash2, Bed, Info, CheckCircle2, XCircle } from "lucide-react";
 
 type Zimmer = {
-  id: number;
+  zimmer_id: number;
   nummer: number;
   aktiv: boolean;
   kategorie_id: number;
@@ -22,7 +22,7 @@ type Zimmer = {
 };
 
 type Kategorie = {
-  id: number;
+  kategorie_id: number;
   name: string;
   preis: number;
   betten_anzahl: number;
@@ -38,22 +38,22 @@ export default function ZimmerPage() {
     queryKey: ["zimmer"],
     queryFn: () =>
       executeQuery<Zimmer[]>(
-        `SELECT z.id, z.nummer, z.aktiv, z.kategorie_id, k.name as kategorie_name 
+        `SELECT z.zimmer_id, z.nummer, z.aktiv, z.kategorie_id, k.name as kategorie_name 
          FROM zimmer z 
-         JOIN Kategorie k ON z.kategorie_id = k.id 
+         JOIN Kategorie k ON z.kategorie_id = k.kategorie_id 
          ORDER BY z.nummer ASC`
       ),
   });
 
   const { data: kategorien = [] } = useQuery({
     queryKey: ["kategorien"],
-    queryFn: () => executeQuery<Kategorie[]>("SELECT id, name, preis, betten_anzahl FROM Kategorie ORDER BY name ASC"),
+    queryFn: () => executeQuery<Kategorie[]>("SELECT kategorie_id, name, preis, betten_anzahl FROM Kategorie ORDER BY name ASC"),
   });
 
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
       // Prüfe erst ob Reservierungen bestehen (optional, hier direktes Löschen)
-      await executeQuery(`DELETE FROM zimmer WHERE id = ${id}`);
+      await executeQuery(`DELETE FROM zimmer WHERE zimmer_id = ${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["zimmer"] });
@@ -131,7 +131,7 @@ export default function ZimmerPage() {
                     </TableRow>
                   ) : (
                     filteredZimmer.map((z) => (
-                      <TableRow key={z.id} className="group hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
+                      <TableRow key={z.zimmer_id} className="group hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
                         <TableCell className="pl-6 py-4 font-semibold text-lg text-slate-900 dark:text-slate-100">
                           <div className="flex items-center gap-3">
                             <Bed className="w-5 h-5 text-slate-400" />
@@ -157,7 +157,7 @@ export default function ZimmerPage() {
                         </TableCell>
                         <TableCell className="text-right pr-6 py-4">
                           <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Dialog open={editingZimmer?.id === z.id} onOpenChange={(open) => !open && setEditingZimmer(null)}>
+                            <Dialog open={editingZimmer?.zimmer_id === z.zimmer_id} onOpenChange={(open) => !open && setEditingZimmer(null)}>
                               <DialogTrigger render={<Button variant="ghost" size="sm" onClick={() => setEditingZimmer(z)} />}>
                                 <Pencil className="w-4 h-4 mr-2" />
                                 Bearbeiten
@@ -166,7 +166,7 @@ export default function ZimmerPage() {
                                 <DialogHeader>
                                   <DialogTitle>Zimmer bearbeiten</DialogTitle>
                                 </DialogHeader>
-                                {editingZimmer?.id === z.id && (
+                                {editingZimmer?.zimmer_id === z.zimmer_id && (
                                   <ZimmerForm
                                     zimmer={z}
                                     kategorien={kategorien}
@@ -184,7 +184,7 @@ export default function ZimmerPage() {
                               className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950"
                               onClick={() => {
                                 if (confirm(`Zimmer ${z.nummer} wirklich löschen?`)) {
-                                  deleteMutation.mutate(z.id);
+                                  deleteMutation.mutate(z.zimmer_id);
                                 }
                               }}
                               disabled={deleteMutation.isPending}
@@ -218,7 +218,7 @@ function ZimmerForm({
   const isEditing = !!zimmer;
   const [formData, setFormData] = useState({
     nummer: zimmer?.nummer.toString() || "",
-    kategorie_id: zimmer?.kategorie_id.toString() || (kategorien[0]?.id.toString() || ""),
+    kategorie_id: zimmer?.kategorie_id.toString() || (kategorien[0]?.kategorie_id.toString() || ""),
     aktiv: zimmer?.aktiv ?? true,
   });
 
@@ -230,7 +230,7 @@ function ZimmerForm({
             nummer = ${formData.nummer}, 
             kategorie_id = ${formData.kategorie_id}, 
             aktiv = ${formData.aktiv} 
-           WHERE id = ${zimmer.id}`
+           WHERE zimmer_id = ${zimmer.zimmer_id}`
         );
       } else {
         await executeQuery(
@@ -266,13 +266,13 @@ function ZimmerForm({
               <SelectValue className="hidden" />
               <span className="flex flex-1 text-left items-center gap-1.5 truncate">
                 {formData.kategorie_id
-                  ? (() => { const k = kategorien.find(k => k.id.toString() === formData.kategorie_id); return k ? `${k.name} (${k.preis}€, ${k.betten_anzahl} Betten)` : formData.kategorie_id; })()
+                  ? (() => { const k = kategorien.find(k => k.kategorie_id.toString() === formData.kategorie_id); return k ? `${k.name} (${k.preis}€, ${k.betten_anzahl} Betten)` : formData.kategorie_id; })()
                   : "Kategorie wählen"}
               </span>
             </SelectTrigger>
             <SelectContent>
               {kategorien.map((kat) => (
-                <SelectItem key={kat.id} value={kat.id.toString()} label={kat.name}>
+                <SelectItem key={kat.kategorie_id} value={kat.kategorie_id.toString()} label={kat.name}>
                   {kat.name} ({kat.preis}€, {kat.betten_anzahl} Betten)
                 </SelectItem>
               ))}

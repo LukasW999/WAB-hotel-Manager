@@ -15,7 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Search, Plus, Trash2, Calendar, User, Bed, Phone, Mail, CheckCircle, Info, UserPlus, Pencil, ChevronLeft, ChevronRight, FileText, Receipt } from "lucide-react";
 
 type Gast = {
-  id: number;
+  gast_id: number;
   vorname: string;
   nachname: string;
   email: string;
@@ -28,7 +28,7 @@ type Gast = {
 };
 
 type Reservierung = {
-  id: number;
+  reservierung_id: number;
   gast_id: number;
   vorname: string;
   nachname: string;
@@ -53,7 +53,7 @@ type Reservierung = {
 };
 
 type Mitreisender = {
-  id?: number;
+  mitreisender_id?: number;
   reservierung_id?: number;
   vorname: string;
   nachname: string;
@@ -61,12 +61,12 @@ type Mitreisender = {
 };
 
 type StatusOption = {
-  id: number;
+  status_id: number;
   name: string;
 };
 
 type Zimmer = {
-  id: number;
+  zimmer_id: number;
   nummer: number;
 };
 
@@ -125,7 +125,7 @@ export default function ReservationsPage() {
 
   const { data: statusOptionen = [] } = useQuery({
     queryKey: ["status_optionen"],
-    queryFn: () => executeQuery<StatusOption[]>("SELECT id, name FROM Status ORDER BY id ASC"),
+    queryFn: () => executeQuery<StatusOption[]>("SELECT status_id, name FROM Status ORDER BY status_id ASC"),
   });
 
   const { data: reservierungen = [] } = useQuery({
@@ -135,15 +135,15 @@ export default function ReservationsPage() {
       const endStr = weekEnd.toISOString().split('T')[0];
       
       let q = `
-        SELECT r.id, r.start as check_in_datum, r.ende as check_out_datum, r.status_id, r.gast_id, r.zimmer_id,
+        SELECT r.reservierung_id, r.start as check_in_datum, r.ende as check_out_datum, r.status_id, r.gast_id, r.zimmer_id,
                r.fruehstueck, r.parkplatz, r.bemerkung,
                g.vorname, g.nachname, g.email, g.telefonnummer, g.strasse, g.hausnummer, g.postleitzahl, g.stadt, g.land,
                z.nummer as zimmer_nummer, k.preis as zimmer_preis, s.name as status
         FROM Reservierung r 
-        JOIN Gast g ON r.gast_id = g.id 
-        JOIN zimmer z ON r.zimmer_id = z.id 
-        JOIN Kategorie k ON z.kategorie_id = k.id
-        LEFT JOIN Status s ON r.status_id = s.id
+        JOIN Gast g ON r.gast_id = g.gast_id 
+        JOIN zimmer z ON r.zimmer_id = z.zimmer_id 
+        JOIN Kategorie k ON z.kategorie_id = k.kategorie_id
+        LEFT JOIN Status s ON r.status_id = s.status_id
         WHERE r.start <= '${endStr} 23:59:59' AND r.ende >= '${startStr} 00:00:00'
       `;
 
@@ -158,19 +158,19 @@ export default function ReservationsPage() {
 
   const { data: zimmer = [] } = useQuery({
     queryKey: ["zimmer_lite"],
-    queryFn: () => executeQuery<Zimmer[]>("SELECT id, nummer FROM zimmer WHERE aktiv = true ORDER BY nummer ASC"),
+    queryFn: () => executeQuery<Zimmer[]>("SELECT zimmer_id, nummer FROM zimmer WHERE aktiv = true ORDER BY nummer ASC"),
   });
 
   const updateStatus = useMutation({
     mutationFn: ({ id, statusId }: { id: number, statusId: number }) =>
-      executeQuery(`UPDATE Reservierung SET status_id = ${statusId} WHERE id = ${id}`),
+      executeQuery(`UPDATE Reservierung SET status_id = ${statusId} WHERE reservierung_id = ${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["reservierungen"] });
     },
   });
 
   const deleteRes = useMutation({
-    mutationFn: (id: number) => executeQuery(`DELETE FROM Reservierung WHERE id = ${id}`),
+    mutationFn: (id: number) => executeQuery(`DELETE FROM Reservierung WHERE reservierung_id = ${id}`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["reservierungen"] }),
   });
 
@@ -187,9 +187,9 @@ export default function ReservationsPage() {
 
   const deleteGuest = useMutation({
     mutationFn: async (id: number) => {
-      const res = await executeQuery<any[]>(`SELECT id FROM Reservierung WHERE gast_id = ${id}`);
+      const res = await executeQuery<any[]>(`SELECT reservierung_id FROM Reservierung WHERE gast_id = ${id}`);
       if (res.length > 0) throw new Error("Gast hat noch aktive Reservierungen!");
-      await executeQuery(`DELETE FROM Gast WHERE id = ${id}`);
+      await executeQuery(`DELETE FROM Gast WHERE gast_id = ${id}`);
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["gäste"] }),
     onError: (err: any) => alert(err.message),
@@ -282,13 +282,13 @@ export default function ReservationsPage() {
                   <SelectTrigger className="h-8 w-[160px] text-xs">
                     <SelectValue className="hidden" />
                     <span className="flex flex-1 text-left items-center truncate">
-                      {filterStatus === "all" ? "Alle Status" : statusOptionen.find(opt => opt.id.toString() === filterStatus)?.name}
+                      {filterStatus === "all" ? "Alle Status" : statusOptionen.find(opt => opt.status_id.toString() === filterStatus)?.name}
                     </span>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all" label="Alle Status">Alle Status</SelectItem>
                     {statusOptionen.map(opt => (
-                      <SelectItem key={opt.id} value={opt.id.toString()} label={opt.name}>{opt.name}</SelectItem>
+                      <SelectItem key={opt.status_id} value={opt.status_id.toString()} label={opt.name}>{opt.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -312,7 +312,7 @@ export default function ReservationsPage() {
                       <TableRow><TableCell colSpan={5} className="h-32 text-center text-slate-500 italic">In dieser Woche gibt es keine Reservierungen.</TableCell></TableRow>
                     ) : (
                       filteredReservierungen.map((res) => (
-                        <TableRow key={res.id} className="group hover:bg-slate-50/50 dark:hover:bg-slate-800/20">
+                        <TableRow key={res.reservierung_id} className="group hover:bg-slate-50/50 dark:hover:bg-slate-800/20">
                           <TableCell className="pl-6 py-4">
                             <div className="flex items-center gap-3">
                               <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-400">
@@ -338,7 +338,7 @@ export default function ReservationsPage() {
                           <TableCell className="text-left py-4">
                             <div className="flex justify-start gap-1">
                               <Dialog
-                                open={selectedRes?.id === res.id}
+                                open={selectedRes?.reservierung_id === res.reservierung_id}
                                 onOpenChange={(open) => {
                                   if (!open) {
                                     setSelectedRes(null);
@@ -354,7 +354,7 @@ export default function ReservationsPage() {
                                 </DialogTrigger>
                                 <DialogContent className="sm:max-w-[700px] max-h-[95vh] overflow-y-auto">
                                   <DialogHeader>
-                                    <DialogTitle>{isEditingRes ? "Reservierung bearbeiten" : `Buchungs-Details #${res.id}`}</DialogTitle>
+                                    <DialogTitle>{isEditingRes ? "Reservierung bearbeiten" : `Buchungs-Details #${res.reservierung_id}`}</DialogTitle>
                                     <DialogDescription>{isEditingRes ? "Passen Sie die Zeiträume oder Zusatzleistungen an." : "Status ändern oder Details einsehen."}</DialogDescription>
                                   </DialogHeader>
                                   
@@ -393,7 +393,7 @@ export default function ReservationsPage() {
                                           <div className="col-span-2 pt-4 border-t">
                                             <p className="text-slate-500 text-xs mb-2 flex items-center gap-1.5"><UserPlus className="w-3 h-3" /> Mitreisende Personen</p>
                                             <div className="space-y-1.5">
-                                              <MitreisendeList reservierungId={res.id} />
+                                              <MitreisendeList reservierungId={res.reservierung_id} />
                                             </div>
                                           </div>
                                         </div>
@@ -409,20 +409,20 @@ export default function ReservationsPage() {
                                                 <SelectValue className="hidden" />
                                                 <span className="flex flex-1 text-left items-center gap-1.5 line-clamp-1">
                                                   {tempStatusId
-                                                    ? statusOptionen.find(opt => opt.id.toString() === tempStatusId)?.name || tempStatusId
+                                                    ? statusOptionen.find(opt => opt.status_id.toString() === tempStatusId)?.name || tempStatusId
                                                     : "Status wählen..."}
                                                 </span>
                                               </SelectTrigger>
                                               <SelectContent>
                                                 {statusOptionen.map(opt => (
-                                                  <SelectItem key={opt.id} value={opt.id.toString()} label={opt.name}>{opt.name}</SelectItem>
+                                                  <SelectItem key={opt.status_id} value={opt.status_id.toString()} label={opt.name}>{opt.name}</SelectItem>
                                                 ))}
                                               </SelectContent>
                                             </Select>
                                             <Button
                                               size="sm"
                                               className="bg-indigo-600 hover:bg-indigo-700 text-white"
-                                              onClick={() => tempStatusId && updateStatus.mutate({ id: res.id, statusId: parseInt(tempStatusId) })}
+                                              onClick={() => tempStatusId && updateStatus.mutate({ id: res.reservierung_id, statusId: parseInt(tempStatusId) })}
                                               disabled={updateStatus.isPending || tempStatusId === res.status_id?.toString() || !tempStatusId}
                                             >
                                               {updateStatus.isPending ? "..." : "Speichern"}
@@ -436,7 +436,7 @@ export default function ReservationsPage() {
                                             variant="ghost"
                                             size="sm"
                                             className="text-red-500 hover:text-red-600 hover:bg-red-50 px-0"
-                                            onClick={() => { if (confirm("Reservierung wirklich löschen?")) deleteRes.mutate(res.id); }}
+                                            onClick={() => { if (confirm("Reservierung wirklich löschen?")) deleteRes.mutate(res.reservierung_id); }}
                                           >
                                             <Trash2 className="w-4 h-4 mr-1.5" /> Löschen
                                           </Button>
@@ -479,7 +479,7 @@ export default function ReservationsPage() {
                       <TableRow><TableCell colSpan={4} className="h-32 text-center text-slate-500 italic">Noch keine Gäste im Stamm.</TableCell></TableRow>
                     ) : (
                       gäste.map((g) => (
-                        <TableRow key={g.id} className="group">
+                        <TableRow key={g.gast_id} className="group">
                           <TableCell className="pl-6 py-4 font-medium">{g.vorname} {g.nachname}</TableCell>
                           <TableCell className="py-4 text-sm text-slate-600">
                             <div className="flex flex-col gap-0.5">
@@ -497,7 +497,7 @@ export default function ReservationsPage() {
                               <Button variant="ghost" size="sm" onClick={() => setGuestHistory(g)} title="Historie & Rechnungen">
                                 <FileText className="w-4 h-4 text-indigo-500" />
                               </Button>
-                              <Dialog open={editingGuest?.id === g.id} onOpenChange={(open) => !open && setEditingGuest(null)}>
+                              <Dialog open={editingGuest?.gast_id === g.gast_id} onOpenChange={(open) => !open && setEditingGuest(null)}>
                                 <DialogTrigger render={<Button variant="ghost" size="sm" onClick={() => setEditingGuest(g)} />}>
                                   <Pencil className="w-4 h-4" />
                                 </DialogTrigger>
@@ -505,7 +505,7 @@ export default function ReservationsPage() {
                                   <DialogHeader>
                                     <DialogTitle>Gast bearbeiten</DialogTitle>
                                   </DialogHeader>
-                                  {editingGuest?.id === g.id && (
+                                  {editingGuest?.gast_id === g.gast_id && (
                                     <GuestForm
                                       initialData={g}
                                       onSave={() => {
@@ -517,7 +517,7 @@ export default function ReservationsPage() {
                                   )}
                                 </DialogContent>
                               </Dialog>
-                              <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => { if (confirm("Gast wirklich löschen?")) deleteGuest.mutate(g.id); }}>
+                              <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => { if (confirm("Gast wirklich löschen?")) deleteGuest.mutate(g.gast_id); }}>
                                 <Trash2 className="w-4 h-4" />
                               </Button>
                             </div>
@@ -556,7 +556,7 @@ function GuestForm({ onSave, initialData }: { onSave: (id?: number) => void, ini
     land: initialData?.land || "Deutschland"
   });
 
-  const isEditing = !!initialData?.id;
+  const isEditing = !!initialData?.gast_id; // GUEST_FORM
 
   const isValid = 
     formData.vorname.trim() !== "" &&
@@ -573,18 +573,18 @@ function GuestForm({ onSave, initialData }: { onSave: (id?: number) => void, ini
     mutationFn: async () => {
       if (!isValid) throw new Error("Bitte alle Felder korrekt ausfüllen.");
       if (isEditing) {
-        await executeQuery(`UPDATE Gast SET vorname = '${formData.vorname}', nachname = '${formData.nachname}', email = '${formData.email}', telefonnummer = '${formData.telefonnummer}', strasse = '${formData.strasse}', hausnummer = '${formData.hausnummer}', postleitzahl = '${formData.postleitzahl}', stadt = '${formData.stadt}', land = '${formData.land}' WHERE id = ${initialData.id}`);
-        return initialData.id;
+        await executeQuery(`UPDATE Gast SET vorname = '${formData.vorname}', nachname = '${formData.nachname}', email = '${formData.email}', telefonnummer = '${formData.telefonnummer}', strasse = '${formData.strasse}', hausnummer = '${formData.hausnummer}', postleitzahl = '${formData.postleitzahl}', stadt = '${formData.stadt}', land = '${formData.land}' WHERE gast_id = ${initialData.gast_id}`);
+        return initialData.gast_id;
       } else {
-        const res = await executeQuery<{ id: number }[]>(`
+        const res = await executeQuery<{ gast_id: number }[]>(`
           WITH inserted_gast AS (
             INSERT INTO Gast (vorname, nachname, email, telefonnummer, strasse, hausnummer, postleitzahl, stadt, land) 
             VALUES ('${formData.vorname}', '${formData.nachname}', '${formData.email}', '${formData.telefonnummer}', '${formData.strasse}', '${formData.hausnummer}', '${formData.postleitzahl}', '${formData.stadt}', '${formData.land}')
-            RETURNING id
+            RETURNING gast_id
           )
-          SELECT id FROM inserted_gast
+          SELECT gast_id FROM inserted_gast
         `);
-        return res[0].id;
+        return res[0].gast_id;
       }
     },
     onSuccess: (id) => onSave(id),
@@ -627,7 +627,7 @@ function GuestForm({ onSave, initialData }: { onSave: (id?: number) => void, ini
 // ----------------------
 
 function ReservationForm({ gäste, zimmer, onSave, initialData }: { gäste: Gast[], zimmer: Zimmer[], onSave: () => void, initialData?: Reservierung }) {
-  const isEditing = !!initialData?.id;
+  const isEditing = !!initialData?.reservierung_id;
   const [useExistingGuest, setUseExistingGuest] = useState(true);
   const [selectedGuestId, setSelectedGuestId] = useState<string>(initialData?.gast_id.toString() || "");
   const [guestFormData, setGuestFormData] = useState({ vorname: "", nachname: "", email: "", telefonnummer: "", strasse: "", hausnummer: "", postleitzahl: "", stadt: "", land: "Deutschland" });
@@ -643,11 +643,11 @@ function ReservationForm({ gäste, zimmer, onSave, initialData }: { gäste: Gast
   });
 
   useEffect(() => {
-    if (isEditing && initialData?.id) {
-       executeQuery<Mitreisender[]>(`SELECT * FROM Mitreisender WHERE reservierung_id = ${initialData.id}`)
+    if (isEditing && initialData?.reservierung_id) {
+       executeQuery<Mitreisender[]>(`SELECT * FROM Mitreisender WHERE reservierung_id = ${initialData.reservierung_id}`)
          .then(res => setResData(prev => ({ ...prev, mitreisende: res })));
     }
-  }, [isEditing, initialData?.id]);
+  }, [isEditing, initialData?.reservierung_id]);
 
   const isGuestValid = useExistingGuest 
     ? selectedGuestId !== "" 
@@ -680,16 +680,16 @@ function ReservationForm({ gäste, zimmer, onSave, initialData }: { gäste: Gast
               fruehstueck = ${resData.fruehstueck}, 
               parkplatz = ${resData.parkplatz}, 
               bemerkung = '${resData.bemerkung.replace(/'/g, "''")}' 
-            WHERE id = ${initialData.id}
-            RETURNING id
+            WHERE reservierung_id = ${initialData.reservierung_id}
+            RETURNING reservierung_id
           ),
           deleted_mit AS (
-            DELETE FROM Mitreisender WHERE reservierung_id = ${initialData.id}
+            DELETE FROM Mitreisender WHERE reservierung_id = ${initialData.reservierung_id}
           )`;
 
         if (resData.mitreisende.length > 0) {
           const mit_values = resData.mitreisende.map(m => 
-            `((SELECT id FROM updated_res), '${m.vorname}', '${m.nachname}', ${m.geburtsdatum ? `'${m.geburtsdatum}'` : 'NULL'})`
+            `((SELECT reservierung_id FROM updated_res), '${m.vorname}', '${m.nachname}', ${m.geburtsdatum ? `'${m.geburtsdatum}'` : 'NULL'})`
           ).join(", ");
           
           updateQuery += `,
@@ -699,7 +699,7 @@ function ReservationForm({ gäste, zimmer, onSave, initialData }: { gäste: Gast
           )`;
         }
         
-        updateQuery += ` SELECT id FROM updated_res`;
+        updateQuery += ` SELECT reservierung_id FROM updated_res`;
         await executeQuery(updateQuery);
       } else {
         let insertQuery = "WITH ";
@@ -709,23 +709,23 @@ function ReservationForm({ gäste, zimmer, onSave, initialData }: { gäste: Gast
           insertQuery += `new_gast AS (
             INSERT INTO Gast (vorname, nachname, email, telefonnummer, strasse, hausnummer, postleitzahl, stadt, land) 
             VALUES ('${guestFormData.vorname}', '${guestFormData.nachname}', '${guestFormData.email}', '${guestFormData.telefonnummer}', '${guestFormData.strasse}', '${guestFormData.hausnummer}', '${guestFormData.postleitzahl}', '${guestFormData.stadt}', '${guestFormData.land}')
-            RETURNING id
+            RETURNING gast_id
           )`;
           hasPrevious = true;
         }
 
-        const gastIdRef = useExistingGuest ? selectedGuestId : "(SELECT id FROM new_gast)";
+        const gastIdRef = useExistingGuest ? selectedGuestId : "(SELECT gast_id FROM new_gast)";
         
         insertQuery += (hasPrevious ? `,
           ` : "") + `new_res AS (
           INSERT INTO Reservierung (gast_id, zimmer_id, start, ende, status_id, fruehstueck, parkplatz, bemerkung) 
           VALUES (${gastIdRef}, ${resData.zimmer_id}, '${resData.check_in}', '${resData.check_out}', 1, ${resData.fruehstueck}, ${resData.parkplatz}, '${resData.bemerkung.replace(/'/g, "''")}')
-          RETURNING id
+          RETURNING reservierung_id
         )`;
 
         if (resData.mitreisende.length > 0) {
           const mit_values = resData.mitreisende.map(m => 
-            `((SELECT id FROM new_res), '${m.vorname}', '${m.nachname}', ${m.geburtsdatum ? `'${m.geburtsdatum}'` : 'NULL'})`
+            `((SELECT reservierung_id FROM new_res), '${m.vorname}', '${m.nachname}', ${m.geburtsdatum ? `'${m.geburtsdatum}'` : 'NULL'})`
           ).join(", ");
           
           insertQuery += `,
@@ -735,7 +735,7 @@ function ReservationForm({ gäste, zimmer, onSave, initialData }: { gäste: Gast
           )`;
         }
 
-        insertQuery += ` SELECT id FROM new_res`;
+        insertQuery += ` SELECT reservierung_id FROM new_res`;
         await executeQuery(insertQuery);
       }
     },
@@ -762,13 +762,13 @@ function ReservationForm({ gäste, zimmer, onSave, initialData }: { gäste: Gast
                   <SelectValue className="hidden" />
                   <span className="flex flex-1 text-left items-center gap-1.5 line-clamp-1">
                     {selectedGuestId
-                      ? (() => { const g = gäste.find(g => g.id.toString() === selectedGuestId); return g ? `${g.nachname}, ${g.vorname} (${g.email})` : selectedGuestId; })()
+                      ? (() => { const g = gäste.find(g => g.gast_id.toString() === selectedGuestId); return g ? `${g.nachname}, ${g.vorname} (${g.email})` : selectedGuestId; })()
                       : "Wähle einen Gast..."}
                   </span>
                 </SelectTrigger>
                 <SelectContent>
                   {gäste.map(g => (
-                    <SelectItem key={g.id} value={g.id.toString()} label={`${g.nachname}, ${g.vorname}`}>
+                    <SelectItem key={g.gast_id} value={g.gast_id.toString()} label={`${g.nachname}, ${g.vorname}`}>
                       {g.nachname}, {g.vorname} ({g.email})
                     </SelectItem>
                   ))}
@@ -816,13 +816,13 @@ function ReservationForm({ gäste, zimmer, onSave, initialData }: { gäste: Gast
                 <SelectValue className="hidden" />
                 <span className="flex flex-1 text-left items-center gap-1.5 line-clamp-1">
                   {resData.zimmer_id
-                    ? (() => { const z = zimmer.find(z => z.id.toString() === resData.zimmer_id); return z ? `Zimmer ${z.nummer}` : resData.zimmer_id; })()
+                    ? (() => { const z = zimmer.find(z => z.zimmer_id.toString() === resData.zimmer_id); return z ? `Zimmer ${z.nummer}` : resData.zimmer_id; })()
                     : "Zimmer wählen..."}
                 </span>
               </SelectTrigger>
               <SelectContent>
                 {zimmer.map(z => (
-                  <SelectItem key={z.id} value={z.id.toString()} label={`Zimmer ${z.nummer}`}>
+                  <SelectItem key={z.zimmer_id} value={z.zimmer_id.toString()} label={`Zimmer ${z.nummer}`}>
                     Zimmer {z.nummer}
                   </SelectItem>
                 ))}
@@ -990,7 +990,7 @@ function MitreisendeList({ reservierungId }: { reservierungId: number }) {
 // ----------------------
 
 type Zusatzleistung = {
-  id: number;
+  zusatzleistung_id: number;
   reservierung_id: number;
   name: string;
   preis: number;
@@ -999,18 +999,18 @@ type Zusatzleistung = {
 
 function GuestHistoryViewer({ gast, onClose }: { gast: Gast, onClose: () => void }) {
   const { data: resList = [], isLoading } = useQuery({
-    queryKey: ["gast_hist", gast.id],
+    queryKey: ["gast_hist", gast.gast_id],
     queryFn: () => executeQuery<Reservierung[]>(`
-        SELECT r.id, r.start as check_in_datum, r.ende as check_out_datum, r.status_id, r.gast_id, r.zimmer_id,
+        SELECT r.reservierung_id, r.start as check_in_datum, r.ende as check_out_datum, r.status_id, r.gast_id, r.zimmer_id,
                 r.fruehstueck, r.parkplatz, r.bemerkung,
                 g.vorname, g.nachname, g.email, g.telefonnummer, g.strasse, g.hausnummer, g.postleitzahl, g.stadt, g.land,
                 z.nummer as zimmer_nummer, k.preis as zimmer_preis, s.name as status
          FROM Reservierung r 
-         JOIN Gast g ON r.gast_id = g.id 
-         JOIN zimmer z ON r.zimmer_id = z.id 
-         JOIN Kategorie k ON z.kategorie_id = k.id
-         LEFT JOIN Status s ON r.status_id = s.id
-         WHERE r.gast_id = ${gast.id}
+         JOIN Gast g ON r.gast_id = g.gast_id 
+         JOIN zimmer z ON r.zimmer_id = z.zimmer_id 
+         JOIN Kategorie k ON z.kategorie_id = k.kategorie_id
+         LEFT JOIN Status s ON r.status_id = s.status_id
+         WHERE r.gast_id = ${gast.gast_id}
          ORDER BY r.start DESC
     `)
   });
@@ -1029,7 +1029,7 @@ function GuestHistoryViewer({ gast, onClose }: { gast: Gast, onClose: () => void
             <p className="text-center text-slate-500 py-4">Bisher keine Buchungen für diesen Gast.</p>
           ) : (
             resList.map(res => (
-              <div key={res.id} className="border rounded-md p-4 flex justify-between items-center bg-slate-50/50">
+              <div key={res.reservierung_id} className="border rounded-md p-4 flex justify-between items-center bg-slate-50/50">
                 <div>
                   <p className="font-semibold text-slate-800">
                     {new Date(res.check_in_datum).toLocaleDateString("de-DE")} - {new Date(res.check_out_datum).toLocaleDateString("de-DE")}
@@ -1062,8 +1062,8 @@ function RechnungDialog({ reservierung }: { reservierung: Reservierung }) {
   const parkSum = reservierung.parkplatz ? (10 * nights) : 0;
 
   const { data: extList = [] } = useQuery({
-    queryKey: ["zusatzleistung", reservierung.id],
-    queryFn: () => executeQuery<Zusatzleistung[]>(`SELECT * FROM Zusatzleistung WHERE reservierung_id = ${reservierung.id}`),
+    queryKey: ["zusatzleistung", reservierung.reservierung_id],
+    queryFn: () => executeQuery<Zusatzleistung[]>(`SELECT * FROM Zusatzleistung WHERE reservierung_id = ${reservierung.reservierung_id}`),
     enabled: isOpen
   });
 
@@ -1078,10 +1078,10 @@ function RechnungDialog({ reservierung }: { reservierung: Reservierung }) {
       if (!newName || !newPreis) throw new Error("Name und Preis erforderlich");
       const preisNum = parseFloat(newPreis.replace(',', '.'));
       if (isNaN(preisNum)) throw new Error("Preis ungültig");
-      return executeQuery(`INSERT INTO Zusatzleistung (reservierung_id, name, preis) VALUES (${reservierung.id}, '${newName}', ${preisNum})`);
+      return executeQuery(`INSERT INTO Zusatzleistung (reservierung_id, name, preis) VALUES (${reservierung.reservierung_id}, '${newName}', ${preisNum})`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["zusatzleistung", reservierung.id] });
+      queryClient.invalidateQueries({ queryKey: ["zusatzleistung", reservierung.reservierung_id] });
       setNewName("");
       setNewPreis("");
     },
@@ -1089,9 +1089,9 @@ function RechnungDialog({ reservierung }: { reservierung: Reservierung }) {
   });
 
   const deleteLeistung = useMutation({
-    mutationFn: (id: number) => executeQuery(`DELETE FROM Zusatzleistung WHERE id = ${id}`),
+    mutationFn: (id: number) => executeQuery(`DELETE FROM Zusatzleistung WHERE zusatzleistung_id = ${id}`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["zusatzleistung", reservierung.id] });
+      queryClient.invalidateQueries({ queryKey: ["zusatzleistung", reservierung.reservierung_id] });
     }
   });
 
@@ -1106,7 +1106,7 @@ function RechnungDialog({ reservierung }: { reservierung: Reservierung }) {
             <Receipt className="w-5 h-5"/> Gastrechnung
           </DialogTitle>
           <DialogDescription>
-            Rechnung für Buchung #{reservierung.id} • {reservierung.vorname} {reservierung.nachname}
+            Rechnung für Buchung #{reservierung.reservierung_id} • {reservierung.vorname} {reservierung.nachname}
           </DialogDescription>
         </DialogHeader>
 
@@ -1131,10 +1131,10 @@ function RechnungDialog({ reservierung }: { reservierung: Reservierung }) {
                 </div>
               )}
               {extList.map(ext => (
-                <div key={ext.id} className="flex justify-between items-center group">
+                <div key={ext.zusatzleistung_id} className="flex justify-between items-center group">
                   <div className="flex items-center gap-2">
                     <span>{ext.name} (1x)</span>
-                    <button onClick={() => deleteLeistung.mutate(ext.id)} className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600"><Trash2 className="w-3 h-3"/></button>
+                    <button onClick={() => deleteLeistung.mutate(ext.zusatzleistung_id)} className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600"><Trash2 className="w-3 h-3"/></button>
                   </div>
                   <span className="font-medium">{(ext.preis * ext.anzahl).toFixed(2)} €</span>
                 </div>

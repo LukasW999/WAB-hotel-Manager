@@ -13,7 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Search, UserPlus, Pencil, Building2, Briefcase, Mail, Phone, Calendar, Trash2 } from "lucide-react";
 
 type Mitarbeiter = {
-  id: number;
+  mitarbeiter_id: number;
   vorname: string;
   nachname: string;
   email: string;
@@ -23,7 +23,7 @@ type Mitarbeiter = {
 };
 
 type Status = {
-  id: number;
+  status_id: number;
   name: string;
 };
 
@@ -37,18 +37,18 @@ export default function EmployeesPage() {
     queryKey: ["employees"],
     queryFn: () =>
       executeQuery<Mitarbeiter[]>(
-        `SELECT m.id, m.vorname, m.nachname, m.email, m.telefonnummer, m.geburtsdatum, 
+        `SELECT m.mitarbeiter_id, m.vorname, m.nachname, m.email, m.telefonnummer, m.geburtsdatum, 
          COALESCE(json_agg(w.status_id) FILTER (WHERE w.status_id IS NOT NULL), '[]')::text as statuses_json
          FROM Mitarbeiter m 
-         LEFT JOIN Wird_Betreut_Von w ON m.id = w.mitarbeiter_id 
-         GROUP BY m.id 
-         ORDER BY m.id ASC`
+         LEFT JOIN Wird_Betreut_Von w ON m.mitarbeiter_id = w.mitarbeiter_id 
+         GROUP BY m.mitarbeiter_id 
+         ORDER BY m.mitarbeiter_id ASC`
       ),
   });
 
   const { data: statuses = [] } = useQuery({
     queryKey: ["statuses"],
-    queryFn: () => executeQuery<Status[]>("SELECT * FROM Status ORDER BY id ASC"),
+    queryFn: () => executeQuery<Status[]>("SELECT * FROM Status ORDER BY status_id ASC"),
   });
 
   const deleteMutation = useMutation({
@@ -56,7 +56,7 @@ export default function EmployeesPage() {
       // Lösche zuerst verknüpfte Zuständigkeiten
       await executeQuery(`DELETE FROM Wird_Betreut_Von WHERE mitarbeiter_id = ${id}`);
       // Lösche dann den Mitarbeiter
-      await executeQuery(`DELETE FROM Mitarbeiter WHERE id = ${id}`);
+      await executeQuery(`DELETE FROM Mitarbeiter WHERE mitarbeiter_id = ${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["employees"] });
@@ -137,7 +137,7 @@ export default function EmployeesPage() {
                     filteredEmployees.map((emp) => {
                       const assignedIds: number[] = JSON.parse(emp.statuses_json || "[]");
                       return (
-                        <TableRow key={emp.id} className="group hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
+                        <TableRow key={emp.mitarbeiter_id} className="group hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
                           <TableCell className="pl-6 py-4">
                             <div className="flex items-center gap-3">
                               <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 flex items-center justify-center font-semibold text-sm">
@@ -170,7 +170,7 @@ export default function EmployeesPage() {
                             <div className="flex flex-wrap gap-1.5">
                               {assignedIds.length === 0 && <span className="text-sm text-slate-400 italic">Keine zugewiesen</span>}
                               {assignedIds.map((sid) => {
-                                const st = statuses.find((s) => s.id === sid);
+                                const st = statuses.find((s) => s.status_id === sid);
                                 return (
                                   <Badge key={sid} variant="secondary" className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-none font-normal">
                                     {st?.name || `ID ${sid}`}
@@ -181,7 +181,7 @@ export default function EmployeesPage() {
                           </TableCell>
                           <TableCell className="text-right pr-6 py-4">
                             <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <Dialog open={editingEmployee?.id === emp.id} onOpenChange={(open) => !open && setEditingEmployee(null)}>
+                              <Dialog open={editingEmployee?.mitarbeiter_id === emp.mitarbeiter_id} onOpenChange={(open) => !open && setEditingEmployee(null)}>
                                 <DialogTrigger render={<Button variant="ghost" size="sm" onClick={() => setEditingEmployee(emp)} />}>
                                   <Pencil className="w-4 h-4 mr-2" />
                                   Bearbeiten
@@ -190,7 +190,7 @@ export default function EmployeesPage() {
                                   <DialogHeader>
                                     <DialogTitle>Mitarbeiter bearbeiten</DialogTitle>
                                   </DialogHeader>
-                                  {editingEmployee?.id === emp.id && (
+                                  {editingEmployee?.mitarbeiter_id === emp.mitarbeiter_id && (
                                     <EmployeeForm
                                       employee={emp}
                                       statuses={statuses}
@@ -209,7 +209,7 @@ export default function EmployeesPage() {
                                 className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950"
                                 onClick={() => {
                                   if (confirm(`Möchtest du ${emp.vorname} ${emp.nachname} wirklich löschen?`)) {
-                                    deleteMutation.mutate(emp.id);
+                                    deleteMutation.mutate(emp.mitarbeiter_id);
                                   }
                                 }}
                                 disabled={deleteMutation.isPending}
@@ -259,7 +259,7 @@ function EmployeeForm({
 
   const mutation = useMutation({
     mutationFn: async () => {
-      let empId = employee?.id;
+      let empId = employee?.mitarbeiter_id;
 
       if (!isEditing) {
         // Create atomic utilizing Data-Modifying CTE
@@ -267,17 +267,17 @@ function EmployeeForm({
           WITH new_emp AS (
             INSERT INTO Mitarbeiter (vorname, nachname, email, telefonnummer, geburtsdatum) 
             VALUES ('${formData.vorname}', '${formData.nachname}', '${formData.email}', '${formData.telefonnummer}', '${formData.geburtsdatum}')
-            RETURNING id
+            RETURNING mitarbeiter_id
           )
           ${selectedStatuses.length > 0 ? `,
           assigned_status AS (
             INSERT INTO Wird_Betreut_Von (mitarbeiter_id, status_id)
-            VALUES ${selectedStatuses.map(s => `((SELECT id FROM new_emp), ${s})`).join(', ')}
+            VALUES ${selectedStatuses.map(s => `((SELECT mitarbeiter_id FROM new_emp), ${s})`).join(', ')}
           )` : ''}
-          SELECT id FROM new_emp
+          SELECT mitarbeiter_id FROM new_emp
         `;
-        const res = await executeQuery<{ id: number }[]>(insertQuery);
-        empId = res[0].id;
+        const res = await executeQuery<{ mitarbeiter_id: number }[]>(insertQuery);
+        empId = res[0].mitarbeiter_id;
       } else {
         // Update atomic utilizing Data-Modifying CTE
         const updateQuery = `
@@ -288,8 +288,8 @@ function EmployeeForm({
               email = '${formData.email}', 
               telefonnummer = '${formData.telefonnummer}', 
               geburtsdatum = '${formData.geburtsdatum}' 
-            WHERE id = ${empId}
-            RETURNING id
+            WHERE mitarbeiter_id = ${empId}
+            RETURNING mitarbeiter_id
           ),
           deleted_status AS (
             DELETE FROM Wird_Betreut_Von WHERE mitarbeiter_id = ${empId}
@@ -299,7 +299,7 @@ function EmployeeForm({
             INSERT INTO Wird_Betreut_Von (mitarbeiter_id, status_id)
             VALUES ${selectedStatuses.map(s => `(${empId}, ${s})`).join(', ')}
           )` : ''}
-          SELECT id FROM updated_emp
+          SELECT mitarbeiter_id FROM updated_emp
         `;
         await executeQuery(updateQuery);
       }
@@ -362,11 +362,11 @@ function EmployeeForm({
         <p className="text-xs text-slate-500 mb-2">Wähle die Status aus, die dieser Mitarbeiter betreuen darf.</p>
         <div className="flex flex-wrap gap-2">
           {statuses.map((status) => {
-            const isSelected = selectedStatuses.includes(status.id);
+            const isSelected = selectedStatuses.includes(status.status_id);
             return (
               <Badge
-                key={status.id}
-                onClick={() => toggleStatus(status.id)}
+                key={status.status_id}
+                onClick={() => toggleStatus(status.status_id)}
                 variant={isSelected ? "default" : "outline"}
                 className={`cursor-pointer px-3 py-1.5 text-sm transition-all shadow-sm ${
                   isSelected ? "bg-indigo-600 hover:bg-indigo-700 text-white border-transparent" : "hover:bg-slate-100 dark:hover:bg-slate-800"
